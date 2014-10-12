@@ -436,7 +436,7 @@ main(int argc, char **argv)
 		struct passwd *pw;
 
 		errno = 0;
-		pw = getpwnam(DMA_ROOT_USER);
+		pw = getpwnam(DMA_ROOT_USER); /* CAP: casper */
 		if (pw == NULL) {
 			if (errno == 0)
 				errx(1, "user '%s' not found", DMA_ROOT_USER);
@@ -452,7 +452,7 @@ main(int argc, char **argv)
 	}
 
 	atexit(deltmp);
-	init_random();
+	init_random(); /* CAP: open */
 
 	bzero(&queue, sizeof(queue));
 	LIST_INIT(&queue.queue);
@@ -467,7 +467,7 @@ main(int argc, char **argv)
 		logident_base = "dma";
 		setlogident(NULL);
 
-		if (read_aliases() != 0)
+		if (read_aliases() != 0) /* CAP: fopen */
 			errx(1, "could not parse aliases file `%s'", config.aliases);
 		exit(0);
 	}
@@ -564,7 +564,7 @@ main(int argc, char **argv)
 skipopts:
 	if (logident_base == NULL)
 		logident_base = "dma";
-	setlogident(NULL);
+	setlogident(NULL); /* CAP: openlog */
 
 	act.sa_handler = sighup_handler;
 	act.sa_flags = 0;
@@ -572,52 +572,52 @@ skipopts:
 	if (sigaction(SIGHUP, &act, NULL) != 0)
 		syslog(LOG_WARNING, "can not set signal handler: %m");
 
-	parse_conf(CONF_PATH "/dma.conf");
+	parse_conf(CONF_PATH "/dma.conf"); /* CAP: fopen */
 
 	if (config.authpath != NULL)
-		parse_authfile(config.authpath);
+		parse_authfile(config.authpath); /* CAP: fopen */
 
 	if (showq) {
-		if (load_queue(&queue) < 0)
+		if (load_queue(&queue) < 0) /* CAP?+: opendir, stat, syslog */
 			errlog(1, "can not load queue");
 		show_queue(&queue);
 		return (0);
 	}
 
 	if (doqueue) {
-		flushqueue_signal();
-		if (load_queue(&queue) < 0)
+		flushqueue_signal(); /* CAP: open */
+		if (load_queue(&queue) < 0) /* CAP?+: opendir, stat, syslog */
 			errlog(1, "can not load queue");
-		run_queue(&queue);
+		run_queue(&queue); /* CAP+: MAIN */
 		return (0);
 	}
 
-	if (read_aliases() != 0)
+	if (read_aliases() != 0) /* CAP: fopen */
 		errlog(1, "could not parse aliases file `%s'", config.aliases);
 
-	if ((sender = set_from(&queue, sender)) == NULL)
+	if ((sender = set_from(&queue, sender)) == NULL) /* CAP?: getenv */
 		errlog(1, NULL);
 
-	if (newspoolf(&queue) != 0)
+	if (newspoolf(&queue) != 0) /* CAP: mkstemp, fstat, fchmod, unlink */
 		errlog(1, "can not create temp file in `%s'", config.spooldir);
 
-	setlogident("%s", queue.id);
+	setlogident("%s", queue.id); /* CAP: openlog */
 
 	for (i = 0; i < argc; i++) {
-		if (add_recp(&queue, argv[i], EXPAND_WILDCARD) != 0)
+		if (add_recp(&queue, argv[i], EXPAND_WILDCARD) != 0) /* CAP: getpwnam */
 			errlogx(1, "invalid recipient `%s'", argv[i]);
 	}
 
 	if (LIST_EMPTY(&queue.queue) && !recp_from_header)
 		errlogx(1, "no recipients");
 
-	if (readmail(&queue, nodot, recp_from_header) != 0)
+	if (readmail(&queue, nodot, recp_from_header) != 0) /* CAP: fwrite for queuefn */
 		errlog(1, "can not read mail");
 
 	if (LIST_EMPTY(&queue.queue))
 		errlogx(1, "no recipients");
 
-	if (linkspool(&queue) != 0)
+	if (linkspool(&queue) != 0) /* CAP+: syslog, open */
 		errlog(1, "can not create spools");
 
 	/* From here on the mail is safe. */
@@ -625,7 +625,7 @@ skipopts:
 	if (config.features & DEFER || queue_only)
 		return (0);
 
-	run_queue(&queue);
+	run_queue(&queue); /* CAP+: MAIN */
 
 	/* NOTREACHED */
 	return (0);

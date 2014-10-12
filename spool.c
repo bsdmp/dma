@@ -124,6 +124,7 @@ writequeuef(struct qitem *it)
 	int error;
 	int queuefd;
 
+	/* CAP: open, flock */
 	queuefd = open_locked(it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
 	if (queuefd == -1)
 		return (-1);
@@ -252,7 +253,7 @@ linkspool(struct queue *queue)
 		if (stat(it->queuefn, &st) == 0 || stat(it->mailfn, &st) == 0)
 			goto delfiles;
 
-		if (writequeuef(it) != 0)
+		if (writequeuef(it) != 0) /* CAP+: open, fsync, fflush */
 			goto delfiles;
 
 		if (link(queue->tmpf, it->mailfn) != 0)
@@ -319,7 +320,7 @@ load_queue(struct queue *queue)
 		if (stat(mailfn, &sb) != 0)
 			goto skip_item;
 
-		it = readqueuef(queue, queuefn);
+		it = readqueuef(queue, queuefn); /* CAP: fopen */
 		if (it == NULL)
 			goto skip_item;
 
