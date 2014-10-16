@@ -42,6 +42,10 @@
 #include <resolv.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <nv.h>
+#include <sys/procdesc.h>
+#include <sys/capsicum.h>
 
 #include "dma.h"
 
@@ -261,12 +265,130 @@ err:
 	return (err);
 }
 
-#if defined(TESTING)
+#define DH_SERVICE_MAIN 0
+#define DH_SERVICE_PARSE_CONFIG 1
+#define DH_SERVICE_LOADQUEUE 2
+#define DH_SERVICE_REMOTE 3
+#define DH_SERVICE_LOCAL 4
+
+#define DH_PARSE_CONF 1
+#define DH_PARSE_AUTH 2
+#define DH_PARSE_ALIAS 3
+
+#define DH_CAPS_DNS	0x00000001
+#define DH_CAPS_CONNECT	0x00000002
+#define DH_CAPS_OPEN	0x00000004
+#define DH_CAPS_MKSTEMP	0x00000008
+#define DH_CAPS_SYSLOG	0x00000010
+
+int
+dh_parse(int type)
+{
+	return (0);
+}
+
+/* Fork new process, serving requested service */
+int
+dh_service(int dh, int type)
+{
+	nvlist_t *nvl;
+
+	nvlist_add_number(nvl, "service", type);
+	nvlist_send(dh, nvl);
+	nvlist_destroy(nvl);
+
+	return (0);
+}
+
+int
+dh_res_init(int dsh)
+{
+	nvlist_t *nvl;
+
+	nvlist_add_string(nvl, "command", "res_init");
+	nvlist_send(dsh, nvl);
+	nvlist_destroy(nvl);
+
+	return (0);
+}
+
+int
+dh_res_search(int dsh, const char *dname, int class, int type, u_char *answer,
+    int anslen)
+{
+	return (0);
+}
+
+void
+dmahelp_loop(int fd)
+{
+	nvlist_t *nvl;
+	int srv;
+	pid_t pid;
+	int fdp;
+
+	while ((nvl = nvlist_recv(fd))) {
+		if (nvl == NULL)
+			printf("dmahelp_loop: nvlist_recv() failed\n");
+
+		srv = nvlist_get_number(nvl, "service");
+		printf("Service received: %i\n", srv);
+		switch (srv) {
+		case
+
+	}
+}
+
+int
+dmahelp_init(void)
+{
+	int sv[2];
+	pid_t pid;
+	int fdp;
+
+	if (socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1)
+		return (-1);
+
+	pid = pdfork(&fdp, 0);
+	switch (pid) {
+	/* Child */
+	case 0:
+		close(sv[0]);
+		dmahelp_loop(sv[1]);
+		return (-1);
+	case -1:
+		close(sv[0]);
+		close(sv[1]);
+		return (-1);
+	/* Parrent */
+	default:
+		close(sv[1]);
+		return (sv[0]);
+	}
+}
+
 int
 main(int argc, char **argv)
 {
 	struct mx_hostentry *he, *p;
 	int err;
+	int dh;
+	nvlist_t *nvl;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "service", DH_SERVICE_REMOTE);
+
+	dh = dmahelp_init();
+	if (dh < 0) {
+		printf("dmahelp failed!\n");
+		return (1);
+	}
+
+	if (nvlist_send(dh, nvl) < 0) {
+		nvlist_destroy(nvl);
+		printf("sending nvlist failed\n");
+	};
 
 	err = dns_get_mx_list(argv[1], 53, &he, 0);
 	if (err)
@@ -278,4 +400,3 @@ main(int argc, char **argv)
 
 	return (0);
 }
-#endif
