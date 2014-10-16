@@ -293,6 +293,7 @@ dh_service(int dh, int type)
 {
 	nvlist_t *nvl;
 
+	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "service", type);
 	nvlist_send(dh, nvl);
 	nvlist_destroy(nvl);
@@ -320,7 +321,7 @@ dh_res_search(int dsh, const char *dname, int class, int type, u_char *answer,
 }
 
 void
-dmahelp_loop(int fd)
+dh_loop(int fd)
 {
 	nvlist_t *nvl;
 	int srv;
@@ -329,18 +330,15 @@ dmahelp_loop(int fd)
 
 	while ((nvl = nvlist_recv(fd))) {
 		if (nvl == NULL)
-			printf("dmahelp_loop: nvlist_recv() failed\n");
+			printf("dh_loop: nvlist_recv() failed\n");
 
 		srv = nvlist_get_number(nvl, "service");
 		printf("Service received: %i\n", srv);
-		switch (srv) {
-		case
-
 	}
 }
 
 int
-dmahelp_init(void)
+dh_init(void)
 {
 	int sv[2];
 	pid_t pid;
@@ -354,7 +352,7 @@ dmahelp_init(void)
 	/* Child */
 	case 0:
 		close(sv[0]);
-		dmahelp_loop(sv[1]);
+		dh_loop(sv[1]);
 		return (-1);
 	case -1:
 		close(sv[0]);
@@ -372,23 +370,18 @@ main(int argc, char **argv)
 {
 	struct mx_hostentry *he, *p;
 	int err;
-	int dh;
+	int dh, dhs;
 	nvlist_t *nvl;
 
 	nvl = nvlist_create(0);
 
-	nvlist_add_number(nvl, "service", DH_SERVICE_REMOTE);
-
-	dh = dmahelp_init();
+	dh = dh_init();
 	if (dh < 0) {
 		printf("dmahelp failed!\n");
 		return (1);
 	}
 
-	if (nvlist_send(dh, nvl) < 0) {
-		nvlist_destroy(nvl);
-		printf("sending nvlist failed\n");
-	};
+	dhs = dh_service(dh, DH_SERVICE_REMOTE);
 
 	err = dns_get_mx_list(argv[1], 53, &he, 0);
 	if (err)
