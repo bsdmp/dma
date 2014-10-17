@@ -53,6 +53,9 @@
 int dh, dhs;
 int dh_res_search(int dsh, const char *dname, int class, int type, u_char
     **answer, int anslen);
+int
+dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct addrinfo
+    *hints, struct addrinfo **res);
 
 static int
 sort_pref(const void *a, const void *b)
@@ -85,7 +88,8 @@ add_host(int pref, const char *host, int port, struct mx_hostentry **he, size_t 
 	hints.ai_protocol = IPPROTO_TCP;
 
 	snprintf(servname, sizeof(servname), "%d", port);
-	err = getaddrinfo(host, servname, &hints, &res0);
+	//err = getaddrinfo(host, servname, &hints, &res0);
+	err = dh_getaddrinfo(dhs, host, servname, &hints, &res0);
 	if (err)
 		return (err == EAI_AGAIN ? 1 : -1);
 
@@ -376,6 +380,8 @@ dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct
 	nvlist_add_number(nvl, "hints.ai_socktype", (uint64_t)hints->ai_socktype);
 	nvlist_add_number(nvl, "hints.ai_protocol", (uint64_t)hints->ai_protocol);
 	nvl = nvlist_xfer(dhs, nvl);
+
+	return (0);
 }
 
 void
@@ -393,18 +399,12 @@ dh_loop(int fd)
 	u_char *answer;
 	int anslen;
 	int error;
+	struct addrinfo *ai;
 
 	nvl= nvlist_create(0);
 
 	while ((nvl = nvlist_recv(fd))) {
-		printf("I'm inside the loop!\n");
-
 		srv = nvlist_get_number(nvl, "service");
-		printf("Service received: %i\n", srv);
-		if (cap_sandboxed())
-			printf("dh in capability!\n");
-		else
-			printf("dh not in capability!\n");
 
 		pid = fork();
 		switch (pid) {
@@ -415,13 +415,7 @@ dh_loop(int fd)
 			nvlist_send(fd, nvl);
 			close(fd);
 			close(sv[0]);
-			printf("New service forked!\n");
 			while ((nvl = nvlist_recv(sv[1]))) {
-				printf("Receivied request for service!\n");
-				if (cap_sandboxed())
-					printf("srv in capability!\n");
-				else
-					printf("srv not in capability!\n");
 				cmd = nvlist_take_number(nvl, "command");
 				switch (cmd) {
 				case DH_CMD_RES_INIT:
@@ -441,7 +435,8 @@ dh_loop(int fd)
 					nvlist_send(sv[1], nvl);
 					break;
 				case DH_CMD_GETADDRINFO:
-
+					printf("Received request for dh_getaddrinfo\n");
+					break;
 				default:
 					printf("Unknown command receivied!\n");
 				}
@@ -452,7 +447,6 @@ dh_loop(int fd)
 	}
 	if (nvl == NULL)
 		err(1, "dh_loop: nvlist_recv() failed");
-	printf("I'll exit!\n");
 	exit(0);
 }
 
