@@ -46,8 +46,13 @@
 #include <nv.h>
 #include <sys/procdesc.h>
 #include <sys/capsicum.h>
+#include <err.h>
 
 #include "dma.h"
+
+int dh, dhs;
+int dh_res_search(int dsh, const char *dname, int class, int type, u_char
+    **answer, int anslen);
 
 static int
 sort_pref(const void *a, const void *b)
@@ -146,7 +151,13 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 		goto out;
 
 repeat:
-	err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
+	if (cap_sandboxed())
+		printf("main in capability!\n");
+	else
+		printf("main not in capability!\n");
+	err = dh_res_search(dhs, searchhost, ns_c_in, ns_t_mx, &ans, anssz);
+	printf("dns_get_mx_list: err=%i\n", err);
+//	err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
 	if (err < 0) {
 		switch (h_errno) {
 		case NO_DATA:
@@ -179,6 +190,7 @@ repeat:
 	}
 
 	for (i = 0; i < ns_msg_count(msg, ns_s_an); i++) {
+		printf("I'm inside cycle!: %i\n", ns_msg_count(msg, ns_s_an));
 		if (ns_parserr(&msg, ns_s_an, i, &rr))
 			goto transerr;
 
@@ -247,6 +259,7 @@ err:
 	}
 
 	if (nhosts > 0) {
+		printf("nhosts > 0\n");
 		qsort(hosts, nhosts, sizeof(*hosts), sort_pref);
 		/* terminate list */
 		*hosts[nhosts].host = 0;
@@ -281,6 +294,10 @@ err:
 #define DH_CAPS_MKSTEMP	0x00000008
 #define DH_CAPS_SYSLOG	0x00000010
 
+#define DH_CMD_RES_INIT 1
+#define DH_CMD_RES_SEARCH 2
+#define DH_CMD_GETADDRINFO 3
+
 int
 dh_parse(int type)
 {
@@ -292,13 +309,16 @@ int
 dh_service(int dh, int type)
 {
 	nvlist_t *nvl;
+	int fd;
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "service", type);
-	nvlist_send(dh, nvl);
+	nvl = nvlist_xfer(dh, nvl);
+	fd = nvlist_take_descriptor(nvl, "fd");
+	printf("Success in receiving service fd: %i\n", fd);
 	nvlist_destroy(nvl);
 
-	return (0);
+	return (fd);
 }
 
 int
@@ -306,7 +326,10 @@ dh_res_init(int dsh)
 {
 	nvlist_t *nvl;
 
-	nvlist_add_string(nvl, "command", "res_init");
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "command", DH_CMD_RES_INIT);
+	printf("Sending dh_res_init\n");
 	nvlist_send(dsh, nvl);
 	nvlist_destroy(nvl);
 
@@ -314,10 +337,45 @@ dh_res_init(int dsh)
 }
 
 int
-dh_res_search(int dsh, const char *dname, int class, int type, u_char *answer,
+dh_res_search(int dsh, const char *dname, int class, int type, u_char **answer,
     int anslen)
 {
-	return (0);
+	nvlist_t *nvl;
+	int err;
+	size_t dummy;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "command", DH_CMD_RES_SEARCH);
+	printf("Sending dh_res_search\n");
+	nvlist_add_string(nvl, "dname", dname);
+	nvlist_add_number(nvl, "class", class);
+	nvlist_add_number(nvl, "type", type);
+	nvlist_add_number(nvl, "anslen", anslen);
+	nvl = nvlist_xfer(dsh, nvl);
+	err = nvlist_take_number(nvl, "error");
+	printf("dh_res_search: err=%i\n", err);
+	*answer = nvlist_take_binary(nvl, "answer", &dummy);
+	nvlist_destroy(nvl);
+
+	return (err);
+}
+
+int
+dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct addrinfo
+    *hints, struct addrinfo **res)
+{
+	nvlist_t *nvl;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "command", DH_CMD_GETADDRINFO);
+	nvlist_add_string(nvl, "hostname", hostname);
+	nvlist_add_string(nvl, "servname", servname);
+	nvlist_add_number(nvl, "hints.ai_flags", (uint64_t)hints->ai_flags);
+	nvlist_add_number(nvl, "hints.ai_family", (uint64_t)hints->ai_family);
+	nvlist_add_number(nvl, "hints.ai_socktype", (uint64_t)hints->ai_socktype);
+	nvlist_add_number(nvl, "hints.ai_protocol", (uint64_t)hints->ai_protocol);
+	nvl = nvlist_xfer(dhs, nvl);
 }
 
 void
@@ -327,14 +385,75 @@ dh_loop(int fd)
 	int srv;
 	pid_t pid;
 	int fdp;
+	int sv[2];
+	int cmd;
+	const char *dname;
+	int class;
+	int type;
+	u_char *answer;
+	int anslen;
+	int error;
+
+	nvl= nvlist_create(0);
 
 	while ((nvl = nvlist_recv(fd))) {
-		if (nvl == NULL)
-			printf("dh_loop: nvlist_recv() failed\n");
+		printf("I'm inside the loop!\n");
 
 		srv = nvlist_get_number(nvl, "service");
 		printf("Service received: %i\n", srv);
+		if (cap_sandboxed())
+			printf("dh in capability!\n");
+		else
+			printf("dh not in capability!\n");
+
+		pid = fork();
+		switch (pid) {
+		case 0:
+			socketpair(PF_UNIX, SOCK_STREAM, 0, sv);
+			/* reuse of nvl */
+			nvlist_add_descriptor(nvl, "fd", sv[0]);
+			nvlist_send(fd, nvl);
+			close(fd);
+			close(sv[0]);
+			printf("New service forked!\n");
+			while ((nvl = nvlist_recv(sv[1]))) {
+				printf("Receivied request for service!\n");
+				if (cap_sandboxed())
+					printf("srv in capability!\n");
+				else
+					printf("srv not in capability!\n");
+				cmd = nvlist_take_number(nvl, "command");
+				switch (cmd) {
+				case DH_CMD_RES_INIT:
+					printf("Receivied request for dh_res_init\n");
+					res_init();
+					break;
+				case DH_CMD_RES_SEARCH:
+					printf("Receivied request for dh_res_search\n");
+					dname = nvlist_take_string(nvl, "dname");
+					class = nvlist_take_number(nvl, "class");
+					type = nvlist_take_number(nvl, "type");
+					anslen = nvlist_take_number(nvl, "anslen");
+					answer = malloc(anslen);
+					error = res_search(dname, class, type, answer, anslen);
+					nvlist_add_number(nvl, "error", error);
+					nvlist_add_binary(nvl, "answer", answer, anslen);
+					nvlist_send(sv[1], nvl);
+					break;
+				case DH_CMD_GETADDRINFO:
+
+				default:
+					printf("Unknown command receivied!\n");
+				}
+			}
+
+		}
+
 	}
+	if (nvl == NULL)
+		err(1, "dh_loop: nvlist_recv() failed");
+	printf("I'll exit!\n");
+	exit(0);
 }
 
 int
@@ -344,10 +463,12 @@ dh_init(void)
 	pid_t pid;
 	int fdp;
 
-	if (socketpair(PF_UNIX, SOCK_STREAM, 0, sv) == -1)
+	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
 		return (-1);
+	printf("New fd: %i\n", sv[0]);
+	printf("New fd: %i\n", sv[1]);
 
-	pid = pdfork(&fdp, 0);
+	pid = fork();
 	switch (pid) {
 	/* Child */
 	case 0:
@@ -370,20 +491,15 @@ main(int argc, char **argv)
 {
 	struct mx_hostentry *he, *p;
 	int err;
-	int dh, dhs;
 	nvlist_t *nvl;
 
-	nvl = nvlist_create(0);
-
 	dh = dh_init();
-	if (dh < 0) {
-		printf("dmahelp failed!\n");
-		return (1);
-	}
-
+//	cap_enter();
 	dhs = dh_service(dh, DH_SERVICE_REMOTE);
+	dh_res_init(dhs);
 
 	err = dns_get_mx_list(argv[1], 53, &he, 0);
+	printf("main: err=%i\n", err);
 	if (err)
 		return (err);
 
