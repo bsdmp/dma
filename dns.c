@@ -402,10 +402,10 @@ dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct
 		nvl0 = nvlist_takef_nvlist(nvl, "nvl%u", i);
 
 		addr = nvlist_take_binary(nvl0, "ai_addr", &addrlen);
-		printf("=> dh_getaddrinfo(): adrlen=%i\n", addrlen);
+		printf("=> dh_getaddrinfo(): adrlen=%zu\n", addrlen);
 
 		if (i == 0) {
-			res0 = malloc(sizeof(struct addrinfores0) + addrlen);
+			res0 = malloc(sizeof(struct addrinfo) + addrlen);
 			resf = res0;
 		} else {
 			res1 = res0;
