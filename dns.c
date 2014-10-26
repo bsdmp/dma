@@ -94,6 +94,7 @@ add_host(int pref, const char *host, int port, struct mx_hostentry **he, size_t 
 		return (err == EAI_AGAIN ? 1 : -1);
 
 	for (res = res0; res != NULL; res = res->ai_next) {
+		printf("==> add_host(): itteration\n");
 		if (*ps + 1 >= roundup(*ps, count_inc)) {
 			size_t newsz = roundup(*ps + 2, count_inc);
 			*he = reallocf(*he, newsz * sizeof(**he));
@@ -106,8 +107,11 @@ add_host(int pref, const char *host, int port, struct mx_hostentry **he, size_t 
 		p->pref = pref;
 		p->ai = *res;
 		p->ai.ai_addr = NULL;
+		printf("==> add_host(): before bcopy()\n");
+		printf("==> p->ai.ai_addrlen=%i\n", p->ai.ai_addrlen);
 		bcopy(res->ai_addr, &p->sa, p->ai.ai_addrlen);
 
+		printf("==> add_host(): will try getnameinfo()\n");
 		getnameinfo((struct sockaddr *)&p->sa, p->ai.ai_addrlen,
 			    p->addr, sizeof(p->addr),
 			    NULL, 0, NI_NUMERICHOST);
@@ -155,10 +159,6 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 		goto out;
 
 repeat:
-	if (cap_sandboxed())
-		printf("main in capability!\n");
-	else
-		printf("main not in capability!\n");
 	err = dh_res_search(dhs, searchhost, ns_c_in, ns_t_mx, &ans, anssz);
 	printf("dns_get_mx_list: err=%i\n", err);
 //	err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
@@ -194,7 +194,7 @@ repeat:
 	}
 
 	for (i = 0; i < ns_msg_count(msg, ns_s_an); i++) {
-		printf("I'm inside cycle!: %i\n", ns_msg_count(msg, ns_s_an));
+		printf("=> dns_get_mx_list(): ns_msg_count=%i\n", ns_msg_count(msg, ns_s_an));
 		if (ns_parserr(&msg, ns_s_an, i, &rr))
 			goto transerr;
 
@@ -211,7 +211,7 @@ repeat:
 				goto transerr;
 
 			err = add_host(pref, outname, port, &hosts, &nhosts);
-			printf("=> Tried add_host() received: %i\n", err);
+			printf("=> dns_get_mx_list(): add_host(): %i\n", err);
 			if (err == -1)
 				goto err;
 			break;
@@ -371,7 +371,7 @@ dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct
     *hints, struct addrinfo **res)
 {
 	nvlist_t *nvl, *nvl0;
-	struct addrinfo *res0, *res1;
+	struct addrinfo *res0, *res1, *resf;
 	unsigned int i;
 	size_t addrlen;
 	void *addr;
@@ -389,22 +389,27 @@ dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct
 	nvl = nvlist_xfer(dhs, nvl);
 	printf("=> dh_getaddrinfo(): received!\n");
 	error = (int)nvlist_take_number(nvl, "error");
+	if (error != 0)
+		return (error);
 
 	for (i = 0; ; i++) {
 		if (!nvlist_existsf_nvlist(nvl, "nvl%u", i)) {
 			res0->ai_next = NULL;
 			break;
 		}
+		printf("=> dh_getaddrinfo(): i=%i\n", i);
 
 		nvl0 = nvlist_takef_nvlist(nvl, "nvl%u", i);
 
 		addr = nvlist_take_binary(nvl0, "ai_addr", &addrlen);
+		printf("=> dh_getaddrinfo(): adrlen=%i\n", addrlen);
 
-		if (i == 0)
-			res0 = malloc(sizeof(res0) + addrlen);
-		else {
+		if (i == 0) {
+			res0 = malloc(sizeof(struct addrinfores0) + addrlen);
+			resf = res0;
+		} else {
 			res1 = res0;
-			res0 = malloc(sizeof(res0) + addrlen);
+			res0 = malloc(sizeof(struct addrinfo) + addrlen);
 			res1->ai_next = res0;
 		}
 
@@ -418,12 +423,13 @@ dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct
 		else
 			res0->ai_canonname = NULL;
 
-		res0->ai_addr = (struct sockaddr *)addr;
+		res0->ai_addr = addr;
+		nvlist_destroy(nvl0);
 	};
 
-	*res = res0;
+	*res = resf;
 
-	printf("dh_getaddrinfo will return %i\n", error);
+	printf("=> dh_getaddrinfo(): %i\n", error);
 
 	return (error);
 }
@@ -500,16 +506,17 @@ dh_loop(int fd)
 					memset(&hints, 0, sizeof(hints));
 					hostname = nvlist_take_string(nvl, "hostname");
 					servname = nvlist_take_string(nvl, "servname");
-					hints.ai_flags = nvlist_take_number(nvl, "hints.ai_flags");
-					hints.ai_family = nvlist_take_number(nvl, "hints.ai_family");
-					hints.ai_socktype = nvlist_take_number(nvl, "hints.ai_socktype");
-					hints.ai_protocol = nvlist_take_number(nvl, "hints.ai_protocol");
+					hints.ai_flags = (int)nvlist_take_number(nvl, "hints.ai_flags");
+					hints.ai_family = (int)nvlist_take_number(nvl, "hints.ai_family");
+					hints.ai_socktype = (int)nvlist_take_number(nvl, "hints.ai_socktype");
+					hints.ai_protocol = (int)nvlist_take_number(nvl, "hints.ai_protocol");
 					printf("hostname: %s\nservname: %s\n", hostname, servname);
 					nvlist_destroy(nvl);
 					nvl = nvlist_create(0);
 					if ((error = getaddrinfo(hostname, servname, &hints, &res)) == 0) {
-						for (res0 = res; res0->ai_next != NULL; res0 = res0->ai_next) {
-							printf("Will add one nvlist!\n");
+						res0 = res;
+						for (; res0->ai_next != NULL; ) {
+							printf("DH_CMD_GETADDRINFO: i=%i\n", i);
 							nvl0 = nvlist_create(0);
 
 							nvlist_add_number(nvl0, "ai_flags", (uint64_t)res0->ai_flags);
@@ -527,7 +534,10 @@ dh_loop(int fd)
 							if (nvlist_error(nvl) != 0)
 								err(1, "nvlist_error2");
 							i++;
+							res0 = res0->ai_next;
 						};
+						if (res0->ai_next == NULL)
+							printf("res0->ai_next == NULL\n");
 					} else {
 						err(1, "getaddrinfo");
 					};
@@ -557,8 +567,8 @@ dh_init(void)
 
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
 		return (-1);
-	printf("New fd: %i\n", sv[0]);
-	printf("New fd: %i\n", sv[1]);
+//	printf("New fd: %i\n", sv[0]);
+//	printf("New fd: %i\n", sv[1]);
 
 	pid = fork();
 	switch (pid) {
@@ -587,6 +597,8 @@ main(int argc, char **argv)
 
 	dh = dh_init();
 	cap_enter();
+	if (cap_sandboxed())
+		printf("capability mode sandbox enabled\n");
 	dhs = dh_service(dh, DH_SERVICE_REMOTE);
 	dh_res_init(dhs);
 
