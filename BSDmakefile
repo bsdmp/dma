@@ -9,11 +9,11 @@ CFLAGS+= -DLIBEXEC_PATH='"${LIBEXEC}"' -DDMA_VERSION='"${version}"'
 CFLAGS+= -DCONF_PATH='"${CONFDIR}"'
 
 DPADD=  ${LIBSSL} ${LIBCRYPTO}
-LDADD=  -lssl -lcrypto
+LDADD=  -lssl -lcrypto -lnv
 
 PROG=	dma
 SRCS=	aliases_parse.y aliases_scan.l base64.c conf.c crypto.c
-SRCS+=	dma.c dns.c local.c mail.c net.c spool.c util.c
+SRCS+=	dma.c dns.c local.c mail.c net.c spool.c util.c dmahelper.c
 MAN=	dma.8
 
 PREFIX?=	/usr/local
@@ -24,5 +24,8 @@ BINOWN= root
 BINGRP= mail
 BINMODE=2555
 WARNS?=	6
+
+YFLAGS+=	-i
+CLEANFILES+=	aliases_parse.i
 
 .include <bsd.prog.mk>

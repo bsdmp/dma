@@ -45,6 +45,8 @@
 #include <openssl/ssl.h>
 #include <netdb.h>
 
+#include "dmahelper.h"
+
 #define VERSION	"DragonFly Mail Agent " DMA_VERSION
 
 #define BUF_SIZE	2048
@@ -90,6 +92,8 @@
 #define MBOX_STRICT	0
 #endif
 
+extern int dh;
+extern int dhsr;
 
 struct stritem {
 	SLIST_ENTRY(stritem) next;

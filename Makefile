@@ -15,7 +15,7 @@ debversion=	$(shell ${SH} get-version.sh | sed -Ee 's/^v//;s/[.]([[:digit:]]+)[.
 
 CC?=		gcc
 CFLAGS?=	-O -pipe
-LDADD?=		-lssl -lcrypto -lresolv -lnv
+LDADD?=		-lssl -lcrypto -lresolv
 
 CFLAGS+=	-Wall -DDMA_VERSION='"${version}"' -DLIBEXEC_PATH='"${LIBEXEC}"' -DCONF_PATH='"${CONFDIR}"'
 

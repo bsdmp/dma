@@ -59,6 +59,8 @@
 
 #include "dma.h"
 
+int dh;
+int dhsr;
 
 static void deliver(struct qitem *);
 
@@ -323,9 +325,10 @@ deliver(struct qitem *it)
 retry:
 	syslog(LOG_INFO, "trying delivery");
 
-	if (it->remote)
+	if (it->remote) {
+		dhsr = dh_service(dh, DH_SERVICE_REMOTE);
 		error = deliver_remote(it);
-	else
+	} else
 		error = deliver_local(it);
 
 	switch (error) {
@@ -425,6 +428,8 @@ main(int argc, char **argv)
 	int i, ch;
 	int nodot = 0, showq = 0, queue_only = 0;
 	int recp_from_header = 0;
+
+	dh = dh_init();
 
 	set_username();
 

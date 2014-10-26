@@ -129,7 +129,8 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 	int err;
 	int i;
 
-	res_init();
+	//res_init();
+	dh_res_init(dhsr);
 	searchhost = host;
 	cname_recurse = 0;
 
@@ -142,7 +143,8 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 		goto out;
 
 repeat:
-	err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
+	//err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
+	err = dh_res_search(dhsr, searchhost, ns_c_in, ns_t_mx, ans, anssz);
 	if (err < 0) {
 		switch (h_errno) {
 		case NO_DATA:

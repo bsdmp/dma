@@ -1,18 +1,6 @@
-#include <nv.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <arpa/nameser.h>
-#include <resolv.h>
+#include "dmahelper.h"
 
-#define DH_SERVICE_REMOTE 0
-#define DH_SERVICE_LOCAL 1
-
-#define DH_CMD_RES_INIT 0
-#define DH_CMD_RES_SEARCH 1
-
-/* dma helper for res_search() */
+/* Internal processing of res_search() */
 void
 dh_srv_res_search(nvlist_t *nvlin, nvlist_t *nvlout)
 {
@@ -31,6 +19,52 @@ dh_srv_res_search(nvlist_t *nvlin, nvlist_t *nvlout)
 	error = res_search(dname, class, type, answer, anslen);
 	nvlist_add_number(nvlout, "error", error);
 	nvlist_add_binary(nvlout, "answer", answer, anslen);
+}
+
+/* External interface for res_search() */
+int
+dh_res_search(int fd, const char *dname, int class, int type, u_char *answer,
+    int anslen)
+{
+	nvlist_t *nvl;
+	int error;
+	size_t dummy;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_RES_SEARCH);
+	nvlist_add_string(nvl, "dname", dname);
+	nvlist_add_number(nvl, "class", class);
+	nvlist_add_number(nvl, "type", type);
+	nvlist_add_number(nvl, "anslen", anslen);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	error = nvlist_take_number(nvl, "error");
+	if (error != 0)
+		goto out;
+
+	answer = nvlist_take_binary(nvl, "answer", &dummy);
+
+out:
+	nvlist_destroy(nvl);
+	return (error);
+}
+
+/* External interface for res_init() */
+/* XXX: no internal error processing */
+int
+dh_res_init(int fd)
+{
+	nvlist_t *nvl;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_RES_INIT);
+	nvlist_send(fd, nvl); /* xfer? */
+	nvlist_destroy(nvl);
+
+	return (0);
 }
 
 /* Loop for remtoe services */
@@ -63,6 +97,18 @@ dh_srv_remote(int fd)
 void
 dh_srv_local(int fd)
 {
+	nvlist_t *nvl, *nvlout;
+	int cmd;
+
+	while ((nvl = nvlist_recv(fd))) {
+		cmd = nvlist_take_number(nvl, "cmd");
+		nvlout = nvlist_create(0);
+
+		/* SWITCH goes here */
+
+		nvlist_send(fd, nvlout);
+		nvlist_destroy(nvlout);
+	}
 }
 
 /* Start service loop */
@@ -112,13 +158,28 @@ dh_loop(int fd)
 	}
 }
 
+/* Initialiase helper service, returns fd or (-1) on error */
+int
+dh_service(int fd, int service)
+{
+	nvlist_t *nvl;
+	int srvfd;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "service", service);
+	nvl = nvlist_xfer(fd, nvl);
+	srvfd = nvlist_take_descriptor(nvl, "fd");
+	nvlist_destroy(nvl);
+
+	return (srvfd);
+}
+
 /* Initialize helper, returns fd or (-1) on error */
 int
 dh_init(void)
 {
 	int sv[2];
 	pid_t pid;
-	int fdp;
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
 		return (-1);
 
@@ -128,7 +189,7 @@ dh_init(void)
 	case 0:
 		close(sv[0]);
 		dh_loop(sv[1]);
-		return (-1);
+		exit(0);
 	/* Error */
 	case -1:
 		close(sv[0]);
