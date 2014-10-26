@@ -261,7 +261,6 @@ err:
 	return (err);
 }
 
-#if defined(TESTING)
 int
 main(int argc, char **argv)
 {
@@ -278,4 +277,3 @@ main(int argc, char **argv)
 
 	return (0);
 }
-#endif

@@ -70,11 +70,9 @@
 #define NULLCLIENT	0x100		/* Nullclient support */
 
 #ifndef CONF_PATH
-#error Please define CONF_PATH
 #endif
 
 #ifndef LIBEXEC_PATH
-#error Please define LIBEXEC_PATH
 #endif
 
 #define SPOOL_FLUSHFILE	"flush"
