@@ -466,6 +466,7 @@ dh_loop(int fd)
 	struct addrinfo *ai_next;
 
 	nvl= nvlist_create(0);
+	setproctitle("dma helper: root");
 
 	while ((nvl = nvlist_recv(fd))) {
 		srv = nvlist_get_number(nvl, "service");
@@ -475,11 +476,19 @@ dh_loop(int fd)
 		case 0:
 			socketpair(PF_UNIX, SOCK_STREAM, 0, sv);
 			/* reuse of nvl */
-			nvlist_add_descriptor(nvl, "fd", sv[0]);
+			nvlist_destroy(nvl);
+			nvl = nvlist_create(0);
+			nvlist_move_descriptor(nvl, "fd", sv[0]);
 			nvlist_send(fd, nvl);
 			close(fd);
 			close(sv[0]);
+			setproctitle("dma helper: service");
 			while ((nvl = nvlist_recv(sv[1]))) {
+				printf("====> nvl=%p\n", nvl);
+				if (nvl == NULL) {
+					printf("services ends! ****************************\n");
+					exit(0);
+				}
 				cmd = nvlist_take_number(nvl, "command");
 				switch (cmd) {
 				case DH_CMD_RES_INIT:
@@ -551,12 +560,9 @@ dh_loop(int fd)
 					printf("Unknown command receivied!\n");
 				}
 			}
-
 		}
 
 	}
-	if (nvl == NULL)
-		err(1, "dh_loop: nvlist_recv() failed");
 	exit(0);
 }
 
@@ -605,7 +611,8 @@ main(int argc, char **argv)
 	dh_res_init(dhs);
 
 	err = dns_get_mx_list(argv[1], 53, &he, 0);
-	printf("main: err=%i\n", err);
+	close(dh);
+	close(dhs);
 	if (err)
 		return (err);
 
