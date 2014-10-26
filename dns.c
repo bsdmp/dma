@@ -211,6 +211,7 @@ repeat:
 				goto transerr;
 
 			err = add_host(pref, outname, port, &hosts, &nhosts);
+			printf("=> Tried add_host() received: %i\n", err);
 			if (err == -1)
 				goto err;
 			break;
@@ -345,7 +346,7 @@ dh_res_search(int dsh, const char *dname, int class, int type, u_char **answer,
     int anslen)
 {
 	nvlist_t *nvl;
-	int err;
+	int error;
 	size_t dummy;
 
 	nvl = nvlist_create(0);
@@ -357,49 +358,99 @@ dh_res_search(int dsh, const char *dname, int class, int type, u_char **answer,
 	nvlist_add_number(nvl, "type", type);
 	nvlist_add_number(nvl, "anslen", anslen);
 	nvl = nvlist_xfer(dsh, nvl);
-	err = nvlist_take_number(nvl, "error");
-	printf("dh_res_search: err=%i\n", err);
+	error = nvlist_take_number(nvl, "error");
+	printf("dh_res_search: error=%i\n", error);
 	*answer = nvlist_take_binary(nvl, "answer", &dummy);
 	nvlist_destroy(nvl);
 
-	return (err);
+	return (error);
 }
 
 int
 dh_getaddrinfo(int dhs, const char *hostname, const char *servname, const struct addrinfo
     *hints, struct addrinfo **res)
 {
-	nvlist_t *nvl;
+	nvlist_t *nvl, *nvl0;
+	struct addrinfo *res0, res1;
+	unsigned int i;
+	size_t addrlen;
+	void *addr;
+	int error;
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "command", DH_CMD_GETADDRINFO);
 	nvlist_add_string(nvl, "hostname", hostname);
 	nvlist_add_string(nvl, "servname", servname);
-	nvlist_add_number(nvl, "hints.ai_flags", (uint64_t)hints->ai_flags);
-	nvlist_add_number(nvl, "hints.ai_family", (uint64_t)hints->ai_family);
-	nvlist_add_number(nvl, "hints.ai_socktype", (uint64_t)hints->ai_socktype);
-	nvlist_add_number(nvl, "hints.ai_protocol", (uint64_t)hints->ai_protocol);
+	nvlist_add_number(nvl, "hints.ai_flags", hints->ai_flags);
+	nvlist_add_number(nvl, "hints.ai_family", hints->ai_family);
+	nvlist_add_number(nvl, "hints.ai_socktype", hints->ai_socktype);
+	nvlist_add_number(nvl, "hints.ai_protocol", hints->ai_protocol);
+	printf("=> dh_getaddrinfo(): send request!\n");
 	nvl = nvlist_xfer(dhs, nvl);
+	printf("=> dh_getaddrinfo(): received!\n");
 
-	return (0);
+	for (i = 0; ; i++) {
+		if (!nvlist_existsf_nvlist(nvl, "nvl%u", i))
+			break;
+
+		nvl0 = nvlist_takef_nvlist(nvl, "nvl%u", i);
+
+		addr = nvlist_take_binary(nvl0, "ai_addr", &addrlen);
+
+		res0 = malloc(sizeof(res0) + addrlen);
+
+		error = (int)nvlist_take_number(nvl0, "error");
+		res0->ai_flags = (int)nvlist_take_number(nvl0, "ai_flags");
+		res0->ai_family = (int)nvlist_take_number(nvl0, "ai_family");
+		res0->ai_socktype = (int)nvlist_take_number(nvl0, "ai_socktype");
+		res0->ai_protocol = (int)nvlist_take_number(nvl0, "ai_protocol");
+		res0->ai_addrlen = (socklen_t)addrlen;
+		if (nvlist_exists_string(nvl0, "ai_canonname"))
+			res0->ai_canonname = nvlist_take_string(nvl0, "ai_canonname");
+		else
+			res0->ai_canonname = NULL;
+
+		res0->ai_addr = (struct sockaddr *)addr;
+		res0->ai_next = NULL;
+	};
+
+	*res = res0;
+
+	printf("dh_getaddrinfo will return %i\n", error);
+
+	return (error);
 }
 
 void
 dh_loop(int fd)
 {
-	nvlist_t *nvl;
+	nvlist_t *nvl, *nvl0;
 	int srv;
 	pid_t pid;
 	int fdp;
 	int sv[2];
 	int cmd;
+
 	const char *dname;
 	int class;
 	int type;
 	u_char *answer;
 	int anslen;
 	int error;
-	struct addrinfo *ai;
+
+	struct addrinfo *res, *res0 = NULL;
+	struct addrinfo hints;
+	unsigned int i;
+	char *hostname;
+	char *servname;
+	int ai_flags;
+	int ai_family;
+	int ai_socktype;
+	int ai_protocol;
+	socklen_t ai_addrlen;
+	struct sockaddr *ai_addr;
+	char *ai_canonname;
+	struct addrinfo *ai_next;
 
 	nvl= nvlist_create(0);
 
@@ -435,7 +486,47 @@ dh_loop(int fd)
 					nvlist_send(sv[1], nvl);
 					break;
 				case DH_CMD_GETADDRINFO:
+					i = 0;
 					printf("Received request for dh_getaddrinfo\n");
+					/* TODO: checkout other hints fields! */
+					/* TODO: freeaddr() */
+					memset(&hints, 0, sizeof(hints));
+					hostname = nvlist_take_string(nvl, "hostname");
+					servname = nvlist_take_string(nvl, "servname");
+					hints.ai_flags = nvlist_take_number(nvl, "hints.ai_flags");
+					hints.ai_family = nvlist_take_number(nvl, "hints.ai_family");
+					hints.ai_socktype = nvlist_take_number(nvl, "hints.ai_socktype");
+					hints.ai_protocol = nvlist_take_number(nvl, "hints.ai_protocol");
+					printf("hostname: %s\nservname: %s\n", hostname, servname);
+					if ((error = getaddrinfo(hostname, servname, &hints, &res)) == 0) {
+						for (res0 = res; res0->ai_next != NULL; res0 = res->ai_next) {
+							printf("Will add one nvlist!\n");
+							nvlist_destroy(nvl);
+							nvl = nvlist_create(0);
+							nvl0 = nvlist_create(0);
+
+							nvlist_add_number(nvl0, "error", (uint64_t)error);
+							nvlist_add_number(nvl0, "ai_flags", (uint64_t)res0->ai_flags);
+							nvlist_add_number(nvl0, "ai_family", (uint64_t)res0->ai_family);
+							nvlist_add_number(nvl0, "ai_socktype", (uint64_t)res0->ai_socktype);
+							nvlist_add_number(nvl0, "ai_protocol", (uint64_t)res0->ai_protocol);
+							nvlist_add_number(nvl0, "ai_addrlen", (uint64_t)res0->ai_addrlen);
+							if (res0->ai_canonname != NULL)
+								nvlist_add_string(nvl0, "ai_canonname", res0->ai_canonname);
+							nvlist_add_binary(nvl0, "ai_addr", res0->ai_addr, (size_t)res0->ai_addrlen);
+							if (nvlist_error(nvl0) != 0)
+								err(1, "nvlist_error1");
+
+							nvlist_movef_nvlist(nvl, nvl0, "nvl%u", i);
+							if (nvlist_error(nvl) != 0)
+								err(1, "nvlist_error2");
+							i++;
+						};
+					} else {
+						err(1, "getaddrinfo");
+					};
+					printf("Sending!\n");
+					nvlist_send(sv[1], nvl);
 					break;
 				default:
 					printf("Unknown command receivied!\n");
@@ -488,7 +579,7 @@ main(int argc, char **argv)
 	nvlist_t *nvl;
 
 	dh = dh_init();
-//	cap_enter();
+	cap_enter();
 	dhs = dh_service(dh, DH_SERVICE_REMOTE);
 	dh_res_init(dhs);
 
