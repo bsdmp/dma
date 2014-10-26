@@ -15,7 +15,7 @@ debversion=	$(shell ${SH} get-version.sh | sed -Ee 's/^v//;s/[.]([[:digit:]]+)[.
 
 CC?=		gcc
 CFLAGS?=	-O -pipe
-LDADD?=		-lssl -lcrypto -lresolv
+LDADD?=		-lssl -lcrypto -lresolv -lnv
 
 CFLAGS+=	-Wall -DDMA_VERSION='"${version}"' -DLIBEXEC_PATH='"${LIBEXEC}"' -DCONF_PATH='"${CONFDIR}"'
 
@@ -39,7 +39,7 @@ LN?=		ln
 
 OBJS=	aliases_parse.o aliases_scan.o base64.o conf.o crypto.o
 OBJS+=	dma.o dns.o local.o mail.o net.o spool.o util.o
-OBJS+=	dfcompat.o
+OBJS+=	dfcompat.o dmahelper.o
 
 all: dma dma-mbox-create
 
