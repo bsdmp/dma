@@ -47,7 +47,7 @@
 
 #include "dmahelper.h"
 
-#define VERSION	"DragonFly Mail Agent " DMA_VERSION
+#define VERSION	"DragonFly Mail Agent " DMA_VERSION " (capability sandbox enabled)"
 
 #define BUF_SIZE	2048
 #define ERRMSG_SIZE	200
