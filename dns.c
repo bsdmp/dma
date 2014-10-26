@@ -515,7 +515,7 @@ dh_loop(int fd)
 					nvl = nvlist_create(0);
 					if ((error = getaddrinfo(hostname, servname, &hints, &res)) == 0) {
 						res0 = res;
-						for (; res0->ai_next != NULL; ) {
+						for (; ; ) {
 							printf("DH_CMD_GETADDRINFO: i=%i\n", i);
 							nvl0 = nvlist_create(0);
 
@@ -534,6 +534,8 @@ dh_loop(int fd)
 							if (nvlist_error(nvl) != 0)
 								err(1, "nvlist_error2");
 							i++;
+							if (res0->ai_next == NULL)
+								break;
 							res0 = res0->ai_next;
 						};
 						if (res0->ai_next == NULL)
@@ -542,7 +544,7 @@ dh_loop(int fd)
 						err(1, "getaddrinfo");
 					};
 					nvlist_add_number(nvl, "error", (uint64_t)error);
-					printf("Sending!\n");
+					printf("Sending!  ====================================\n");
 					nvlist_send(sv[1], nvl);
 					break;
 				default:
