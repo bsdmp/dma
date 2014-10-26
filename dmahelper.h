@@ -15,10 +15,5 @@
 int dh_res_init(int);
 int dh_res_search(int, const char *, int, int, u_char *, int);
 
-void dh_srv_res_search(nvlist_t *, nvlist_t *);
-void dh_srv_remote(int);
-void dh_srv_local(int);
-void dh_srv_dispatch(int, int);
-void dh_loop(int);
 int dh_service(int, int);
 int dh_init(void);

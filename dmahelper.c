@@ -1,7 +1,7 @@
 #include "dmahelper.h"
 
 /* Internal processing of res_search() */
-void
+static void
 dh_srv_res_search(nvlist_t *nvlin, nvlist_t *nvlout)
 {
 	const char *dname;
@@ -68,7 +68,7 @@ dh_res_init(int fd)
 }
 
 /* Loop for remtoe services */
-void
+static void
 dh_srv_remote(int fd)
 {
 	nvlist_t *nvl, *nvlout;
@@ -94,7 +94,7 @@ dh_srv_remote(int fd)
 }
 
 /* Loop for local services */
-void
+static void
 dh_srv_local(int fd)
 {
 	nvlist_t *nvl, *nvlout;
@@ -112,7 +112,7 @@ dh_srv_local(int fd)
 }
 
 /* Start service loop */
-void
+static void
 dh_srv_dispatch(int fd, int service)
 {
 	switch (service) {
@@ -128,7 +128,7 @@ dh_srv_dispatch(int fd, int service)
 }
 
 /* Loop of the main helper responsible for forking services */
-void
+static void
 dh_loop(int fd)
 {
 	nvlist_t *nvl;
