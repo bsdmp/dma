@@ -327,9 +327,12 @@ retry:
 
 	if (it->remote) {
 		dhsr = dh_service(dh, DH_SERVICE_REMOTE);
+		close(dh);
 		error = deliver_remote(it);
-	} else
+	} else {
+		close(dh);
 		error = deliver_local(it);
+	}
 
 	switch (error) {
 	case 0:

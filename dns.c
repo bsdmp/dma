@@ -76,7 +76,8 @@ add_host(int pref, const char *host, int port, struct mx_hostentry **he, size_t 
 	hints.ai_protocol = IPPROTO_TCP;
 
 	snprintf(servname, sizeof(servname), "%d", port);
-	err = getaddrinfo(host, servname, &hints, &res0);
+	//err = getaddrinfo(host, servname, &hints, &res0);
+	err = dh_getaddrinfo(dhsr, host, servname, &hints, &res0);
 	if (err)
 		return (err == EAI_AGAIN ? 1 : -1);
 
