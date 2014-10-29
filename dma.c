@@ -260,8 +260,13 @@ go_background(struct queue *queue)
 
 	LIST_FOREACH(it, &queue->queue, next) {
 		/* No need to fork for the last dest */
-		if (LIST_NEXT(it, next) == NULL)
-			goto retit;
+//		if (LIST_NEXT(it, next) == NULL)
+//			goto retit;
+
+		if (it->remote) {
+			syslog(LOG_INFO, "forking helper for remote");
+			dhsr = dh_service(dh, DH_SERVICE_REMOTE);
+		}
 
 		pid = fork();
 		switch (pid) {
@@ -276,7 +281,8 @@ go_background(struct queue *queue)
 			 *
 			 * return and deliver mail
 			 */
-retit:
+			close(dh);
+//retit:
 			/*
 			 * If necessary, acquire the queue and * mail files.
 			 * If this fails, we probably were raced by another
@@ -304,6 +310,7 @@ retit:
 			 *
 			 * fork next child
 			 */
+			close(dhsr);
 			break;
 		}
 	}
@@ -326,8 +333,6 @@ retry:
 	syslog(LOG_INFO, "trying delivery");
 
 	if (it->remote) {
-		dhsr = dh_service(dh, DH_SERVICE_REMOTE);
-		close(dh);
 		error = deliver_remote(it);
 	} else {
 		error = deliver_local(it);
