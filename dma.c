@@ -330,7 +330,6 @@ retry:
 		close(dh);
 		error = deliver_remote(it);
 	} else {
-		close(dh);
 		error = deliver_local(it);
 	}
 

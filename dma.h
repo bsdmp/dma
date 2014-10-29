@@ -82,7 +82,7 @@
 #define SPOOL_FLUSHFILE	"flush"
 
 #ifndef DMA_ROOT_USER
-#define DMA_ROOT_USER	"mail"
+#define DMA_ROOT_USER	"mailnull"
 #endif
 #ifndef DMA_GROUP
 #define DMA_GROUP	"mail"
