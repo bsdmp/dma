@@ -1,6 +1,18 @@
 #include "dmahelper.h"
 
-/* Helper function, tabek from libcapsicum */
+/* Internal processing of connect() */
+static void
+dh_srv_connect(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+}
+
+/* External interface for connect() */
+int
+dh_connect(int fd, int s, const struct sockaddr *name, socklen_t namelen)
+{
+}
+
+/* Helper function, taken from libcapsicum */
 static struct addrinfo *
 addrinfo_unpack(const nvlist_t *nvl)
 {
@@ -303,6 +315,9 @@ dh_srv_remote(int fd)
 			break;
 		case DH_CMD_GETADDRINFO:
 			dh_srv_getaddrinfo(nvl, nvlout);
+			break;
+		case DH_CMD_CONNECT:
+			dh_srv_connect(nvl, nvlout);
 			break;
 		}
 
