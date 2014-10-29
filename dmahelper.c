@@ -7,7 +7,7 @@ addrinfo_unpack(const nvlist_t *nvl)
 	struct addrinfo *ai;
 	const void *addr;
 	size_t addrlen;
-	const char *canonname;
+	const char *canonname = NULL;
 
 	addr = nvlist_get_binary(nvl, "ai_addr", &addrlen);
 	ai = malloc(sizeof(*ai) + addrlen);
@@ -18,8 +18,8 @@ addrinfo_unpack(const nvlist_t *nvl)
 	ai->ai_socktype = (int)nvlist_get_number(nvl, "ai_socktype");
 	ai->ai_protocol = (int)nvlist_get_number(nvl, "ai_protocol");
 	ai->ai_addrlen = (socklen_t)addrlen;
-	canonname = nvlist_get_string(nvl, "ai_canonname");
-	if (canonname != NULL) {
+	/* TODO: it was get_string, but it fails if it doesn't exist */
+	if (nvlist_exists_string(nvl, "ai_canonname")) {
 		ai->ai_canonname = strdup(canonname);
 		if (ai->ai_canonname == NULL) {
 			free(ai);
@@ -42,12 +42,25 @@ addrinfo_pack(const struct addrinfo *ai)
 	nvlist_t *nvl;
 
 	nvl = nvlist_create(0);
-	nvlist_add_number(nvl, "ai_flags", (uint64_t)ai->ai_flags);
-	nvlist_add_number(nvl, "ai_family", (uint64_t)ai->ai_family);
-	nvlist_add_number(nvl, "ai_socktype", (uint64_t)ai->ai_socktype);
-	nvlist_add_number(nvl, "ai_protocol", (uint64_t)ai->ai_protocol);
+	nvlist_add_number(nvl, "ai_flags", ai->ai_flags);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_flags: %i", nvlist_error(nvl));
+	nvlist_add_number(nvl, "ai_family", ai->ai_family);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_family: %i", nvlist_error(nvl));
+	nvlist_add_number(nvl, "ai_socktype", ai->ai_socktype);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_socktype: %i", nvlist_error(nvl));
+	nvlist_add_number(nvl, "ai_protocol", ai->ai_protocol);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_protocol: %i", nvlist_error(nvl));
 	nvlist_add_binary(nvl, "ai_addr", ai->ai_addr, (size_t)ai->ai_addrlen);
-	nvlist_add_string(nvl, "ai_canonname", ai->ai_canonname);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_addr: %i", nvlist_error(nvl));
+	if (ai->ai_canonname != NULL)
+		nvlist_add_string(nvl, "ai_canonname", ai->ai_canonname);
+	if (nvlist_error(nvl) != 0)
+		syslog(LOG_INFO, "==> err ai_canonname: %i", nvlist_error(nvl));
 
 	return (nvl);
 }
@@ -62,20 +75,21 @@ dh_srv_getaddrinfo(nvlist_t *nvlin, nvlist_t *nvlout)
 	unsigned int ii;
 	int error, family;
 
+	memset(&hints, 0, sizeof(hints));
 	hostname = nvlist_get_string(nvlin, "hostname");
 	servname = nvlist_get_string(nvlin, "servname");
 	if (nvlist_exists_number(nvlin, "hints.ai_flags")) {
-		hints.ai_flags = (int)nvlist_get_number(nvlin,
+		hints.ai_flags = nvlist_get_number(nvlin,
 		    "hints.ai_flags");
-		hints.ai_family = (int)nvlist_get_number(nvlin,
+		hints.ai_family = nvlist_get_number(nvlin,
 		    "hints.ai_family");
-		hints.ai_socktype = (int)nvlist_get_number(nvlin,
+		hints.ai_socktype = nvlist_get_number(nvlin,
 		    "hints.ai_socktype");
-		hints.ai_protocol = (int)nvlist_get_number(nvlin,
+		hints.ai_protocol = nvlist_get_number(nvlin,
 		    "hints.ai_protocol");
-		hints.ai_addrlen = 0;
-		hints.ai_addr = NULL;
-		hints.ai_canonname = NULL;
+//		hints.ai_addrlen = 0;
+//		hints.ai_addr = NULL;
+//		hints.ai_canonname = NULL;
 		hintsp = &hints;
 		family = hints.ai_family;
 	} else {
@@ -84,20 +98,23 @@ dh_srv_getaddrinfo(nvlist_t *nvlin, nvlist_t *nvlout)
 	}
 
 	error = getaddrinfo(hostname, servname, hintsp, &res);
+	syslog(LOG_INFO, "dh_srv_getaddrinfo error=%i", error);
 	if (error != 0)
 		goto out;
 
 	for (cur = res, ii = 0; cur != NULL; cur = cur->ai_next, ii++) {
 		elem = addrinfo_pack(cur);
+		if (nvlist_error(elem) != 0)
+			syslog(LOG_INFO, "==> dh_srv_getaddrinfo(): %i",
+			    nvlist_error(elem));
 		nvlist_movef_nvlist(nvlout, elem, "res%u", ii);
 	}
 
 	freeaddrinfo(res);
 	error = 0;
 out:
+	nvlist_add_string(nvlout, "errstr", gai_strerror(error));
 	nvlist_add_number(nvlout, "error", error);
-	nvlist_add_number(nvlout, "errno", errno);
-
 }
 
 /* External interface for getaddrinfo(), taken from libcapsicum */
@@ -123,23 +140,24 @@ dh_getaddrinfo(int fd, const char *hostname, const char *servname,
 	nvlist_add_string(nvl, "servname", servname);
 	if (hints != NULL) {
 		nvlist_add_number(nvl, "hints.ai_flags",
-		    (uint64_t)hints->ai_flags);
+		    hints->ai_flags);
 		nvlist_add_number(nvl, "hints.ai_family",
-		    (uint64_t)hints->ai_family);
+		    hints->ai_family);
 		nvlist_add_number(nvl, "hints.ai_socktype",
-		    (uint64_t)hints->ai_socktype);
+		    hints->ai_socktype);
 		nvlist_add_number(nvl, "hints.ai_protocol",
-		    (uint64_t)hints->ai_protocol);
+		    hints->ai_protocol);
 	}
 	nvlist_add_string(nvl, "delimeter", "----");
 	nvlist_fdump(nvl, dbg); /* !!! */
-	syslog(LOG_INFO, "dh_getaddrinfo(): send request");
+	syslog(LOG_INFO, "=> dh_getaddrinfo(): send request");
 	nvl = nvlist_xfer(fd, nvl);
-	syslog(LOG_INFO, "dh_getaddrinfo(): got answer; errno=%i", errno);
+	nvlist_fdump(nvl, dbg); /* !!! */
+	syslog(LOG_INFO, "=> dh_getaddrinfo(): got answer");
 	if (nvlist_empty(nvl))
-		syslog(LOG_INFO, "dh_getaddrinfo(): got empty!");
+		syslog(LOG_INFO, "=> dh_getaddrinfo(): got empty!");
 	if (nvl == NULL) {
-		syslog(LOG_INFO, "dh_getaddrinfo(): got NULL");
+		syslog(LOG_INFO, "=> dh_getaddrinfo(): got NULL");
 		return (EAI_MEMORY);
 	}
 	if (nvlist_get_number(nvl, "error") != 0) {
@@ -220,7 +238,7 @@ dh_res_search(int fd, const char *dname, int class, int type, u_char *answer,
 
 	nvl = nvlist_xfer(fd, nvl);
 
-	error = nvlist_take_number(nvl, "error");
+	error = nvlist_get_number(nvl, "error");
 	if (error != 0)
 		goto out;
 
@@ -231,8 +249,18 @@ out:
 	return (error);
 }
 
+/* Internal interface for res_init() */
+static void
+dh_srv_res_init(nvlist_t *nvlout)
+{
+	int error;
+
+	error = res_init();
+
+	nvlist_add_number(nvlout, "error", error);
+};
+
 /* External interface for res_init() */
-/* XXX: no internal error processing */
 int
 dh_res_init(int fd)
 {
@@ -242,7 +270,7 @@ dh_res_init(int fd)
 	nvlist_add_number(nvl, "cmd", DH_CMD_RES_INIT);
 	nvlist_add_string(nvl, "delimeter", "----");
 
-	nvlist_send(fd, nvl); /* xfer? */
+	nvl = nvlist_xfer(fd, nvl);
 	nvlist_destroy(nvl);
 
 	return (0);
@@ -255,16 +283,19 @@ dh_srv_remote(int fd)
 	nvlist_t *nvl, *nvlout;
 	int cmd;
 	FILE *dbg = fopen("/home/misha/dma2.debug", "w"); /* !!! */
+	openlog("dma-srv-remote", LOG_PID | LOG_NDELAY, LOG_MAIL);
 
+	syslog(LOG_INFO, "dh_srv_remote(): new instance");
 	while ((nvl = nvlist_recv(fd))) {
 		nvlist_fdump(nvl, dbg);
 		cmd = nvlist_take_number(nvl, "cmd");
+		syslog(LOG_INFO, "=> dh_srv_remote(): got request for cmd=%i", cmd);
 		nvlout = nvlist_create(0);
 
 		switch (cmd) {
 		case DH_CMD_RES_INIT:
 			/* special handler for this? (errors) */
-			res_init();
+			dh_srv_res_init(nvlout);
 			break;
 		case DH_CMD_RES_SEARCH:
 			dh_srv_res_search(nvl, nvlout);
@@ -275,7 +306,8 @@ dh_srv_remote(int fd)
 		}
 
 		nvlist_fdump(nvlout, dbg);
-		syslog(LOG_INFO, "dh_srv_remote(): will send answer");
+		syslog(LOG_INFO, "=> dh_srv_remote(): will send answer for cmd=%i",
+		    cmd);
 		nvlist_send(fd, nvlout);
 		nvlist_destroy(nvlout);
 	}
@@ -352,6 +384,8 @@ dh_service(int fd, int service)
 {
 	nvlist_t *nvl;
 	int srvfd;
+
+	syslog(LOG_INFO, "forking new service");
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "service", service);
