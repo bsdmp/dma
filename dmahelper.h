@@ -26,7 +26,7 @@ int dh_res_init(int);
 int dh_res_search(int, const char *, int, int, u_char *, int);
 int dh_getaddrinfo(int, const char *, const char *, const struct addrinfo *,
     struct addrinfo **);
-int dh_connect(int, int, const struct sockaddr *, socklen_t);
+int dh_connect(int, int *, const struct sockaddr *, socklen_t);
 
 
 int dh_service(int, int);

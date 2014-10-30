@@ -4,12 +4,51 @@
 static void
 dh_srv_connect(nvlist_t *nvlin, nvlist_t *nvlout)
 {
+	int error;
+	int s;
+	void *name;
+	uint64_t namelen;
+
+	s = nvlist_take_descriptor(nvlin, "fd");
+	name = nvlist_take_binary(nvlin, "name", &namelen);
+
+	error = connect(s, (struct sockaddr *)name, (socklen_t)namelen);
+	if (error != 0)
+		goto out;
+
+	nvlist_move_descriptor(nvlout, "fd", s);
+
+out:
+	nvlist_add_number(nvlout, "error", error);
+	nvlist_add_number(nvlout, "errno", errno);
 }
 
 /* External interface for connect() */
+/* XXX: original connect() take 's', not '*s' */
+/* XXX: errno processing */
 int
-dh_connect(int fd, int s, const struct sockaddr *name, socklen_t namelen)
+dh_connect(int fd, int *s, const struct sockaddr *name, socklen_t namelen)
 {
+	nvlist_t *nvl;
+	int error;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_CONNECT);
+	nvlist_move_descriptor(nvl, "fd", *s);
+	nvlist_add_binary(nvl, "name", name, namelen);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	error = nvlist_get_number(nvl, "error");
+	if (error != 0)
+		goto out;
+
+	*s = nvlist_take_descriptor(nvl, "fd");
+
+out:
+	nvlist_destroy(nvl);
+	return (error);
 }
 
 /* Helper function, taken from libcapsicum */

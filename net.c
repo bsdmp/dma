@@ -325,7 +325,8 @@ open_connection(struct mx_hostentry *h)
 		return (-1);
 	}
 
-	if (connect(fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
+//	if (connect(fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
+	if (dh_connect(dhsr, &fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
 		syslog(LOG_INFO, "connect to %s [%s] failed: %m",
 		       h->host, h->addr);
 		close(fd);
