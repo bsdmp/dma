@@ -1,5 +1,60 @@
 #include "dmahelper.h"
 
+/* Internal processing of open() */
+/* TODO: we can fork this, then open SPOOLDIR and cap_enter */
+/* TODO: save errno only on error */
+static void
+dh_srv_open(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	char *path;
+	int flags;
+	int mode;
+	int ofd;
+	FILE *dbg = fopen("/home/misha/dma.debug", "w"); /* !!! */
+	if (dbg == NULL) {
+	      err(1, "fopen() failed");
+	      syslog(LOG_INFO, "dh_getaddrinfo(): fopen() failed");
+	}
+	nvlist_fdump(nvlin, dbg);
+
+	path = nvlist_take_string(nvlin, "path");
+	flags = nvlist_take_number(nvlin, "flags");
+	mode = nvlist_take_number(nvlin, "mode");
+
+	if (mode == 0)
+		ofd = open(path, flags);
+	else
+		ofd = open(path, flags, mode);
+
+	nvlist_move_descriptor(nvlout, "ofd", ofd);
+	nvlist_add_number(nvlout, "errno", errno);
+}
+
+/* External interface for open() */
+/* TODO: 'int mode' must be '...' */
+int
+dh_open(int fd, const char *path, int flags, int mode)
+{
+	nvlist_t *nvl;
+	int ofd;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_OPEN);
+	nvlist_add_string(nvl, "path", path);
+	nvlist_add_number(nvl, "flags", flags);
+	nvlist_add_number(nvl, "mode", mode);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	ofd = nvlist_take_descriptor(nvl, "ofd");
+	if (ofd == -1)
+		errno = nvlist_get_number(nvl, "errno");
+	nvlist_destroy(nvl);
+
+	return (ofd);
+}
+
 /* Internal processing of connect() */
 static void
 dh_srv_connect(nvlist_t *nvlin, nvlist_t *nvlout)
@@ -346,7 +401,6 @@ dh_srv_remote(int fd)
 
 		switch (cmd) {
 		case DH_CMD_RES_INIT:
-			/* special handler for this? (errors) */
 			dh_srv_res_init(nvlout);
 			break;
 		case DH_CMD_RES_SEARCH:
@@ -357,6 +411,9 @@ dh_srv_remote(int fd)
 			break;
 		case DH_CMD_CONNECT:
 			dh_srv_connect(nvl, nvlout);
+			break;
+		case DH_CMD_OPEN:
+			dh_srv_open(nvl, nvlout);
 			break;
 		}
 

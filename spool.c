@@ -357,6 +357,7 @@ int
 acquirespool(struct qitem *it)
 {
 	int queuefd;
+	int mailfd;
 
 	if (it->queuef == NULL) {
 		queuefd = open_locked(it->queuefn, O_RDWR|O_NONBLOCK);
@@ -368,7 +369,12 @@ acquirespool(struct qitem *it)
 	}
 
 	if (it->mailf == NULL) {
-		it->mailf = fopen(it->mailfn, "r");
+		/* XXX: changed to use open() and fdopen() */
+		mailfd = dh_open(dhsr, it->mailfn, O_RDONLY, 0);
+		if (mailfd < 0)
+			goto fail;
+		it->mailf = fdopen(mailfd, "r");
+//		it->mailf = fopen(it->mailfn, "r");
 		if (it->mailf == NULL)
 			goto fail;
 	}

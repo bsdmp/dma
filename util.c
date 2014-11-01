@@ -290,7 +290,8 @@ open_locked(const char *fname, int flags, ...)
 #ifndef O_EXLOCK
 	int fd, save_errno;
 
-	fd = open(fname, flags, mode);
+//	fd = open(fname, flags, mode);
+	fd = dh_open(dhsr, fname, flags, mode);
 	if (fd < 0)
 		return(fd);
 	if (flock(fd, LOCK_EX|((flags & O_NONBLOCK)? LOCK_NB: 0)) < 0) {
@@ -301,7 +302,8 @@ open_locked(const char *fname, int flags, ...)
 	}
 	return(fd);
 #else
-	return(open(fname, flags|O_EXLOCK, mode));
+//	return(open(fname, flags|O_EXLOCK, mode));
+	return(dh_open(dhsr, fname, flags|O_EXLOCK, mode));
 #endif
 }
 

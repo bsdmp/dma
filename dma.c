@@ -259,14 +259,10 @@ go_background(struct queue *queue)
 	sigaction(SIGCHLD, &sa, NULL);
 
 	LIST_FOREACH(it, &queue->queue, next) {
+		dhsr = dh_service(dh, DH_SERVICE_REMOTE);
 		/* No need to fork for the last dest */
-//		if (LIST_NEXT(it, next) == NULL)
-//			goto retit;
-
-		if (it->remote) {
-			syslog(LOG_INFO, "forking helper for remote");
-			dhsr = dh_service(dh, DH_SERVICE_REMOTE);
-		}
+		if (LIST_NEXT(it, next) == NULL)
+			goto retit;
 
 		pid = fork();
 		switch (pid) {
@@ -281,15 +277,19 @@ go_background(struct queue *queue)
 			 *
 			 * return and deliver mail
 			 */
+retit:
 			close(dh);
-//retit:
+			cap_enter();
+			if (cap_sandboxed())
+				syslog(LOG_INFO, "child sandboxed");
 			/*
 			 * If necessary, acquire the queue and * mail files.
 			 * If this fails, we probably were raced by another
 			 * process.  It is okay to be raced if we're supposed
 			 * to flush the queue.
 			 */
-			setlogident("%s", it->queueid);
+			//TODO XXX: syslog
+//			setlogident("%s", it->queueid);
 			switch (acquirespool(it)) {
 			case 0:
 				break;
