@@ -495,7 +495,6 @@ dh_srv_remote(int fd)
 	nvlist_t *nvl, *nvlout;
 	int cmd;
 	while ((nvl = nvlist_recv(fd))) {
-		nvlist_fdump(nvl, dbg);
 		cmd = nvlist_take_number(nvl, "cmd");
 		nvlout = nvlist_create(0);
 
@@ -517,7 +516,6 @@ dh_srv_remote(int fd)
 			break;
 		}
 
-		nvlist_fdump(nvlout, dbg);
 		nvlist_send(fd, nvlout);
 		nvlist_destroy(nvlout);
 	}
