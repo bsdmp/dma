@@ -280,9 +280,6 @@ go_background(struct queue *queue)
 			 */
 retit:
 			close(dh);
-			cap_enter();
-			if (cap_sandboxed())
-				syslog(LOG_INFO, "child sandboxed");
 			/*
 			 * If necessary, acquire the queue and * mail files.
 			 * If this fails, we probably were raced by another
@@ -386,6 +383,10 @@ void
 run_queue(struct queue *queue)
 {
 	struct qitem *it;
+
+	cap_enter();
+	if (cap_sandboxed())
+		syslog(LOG_INFO, "child sandboxed");
 
 	if (LIST_EMPTY(&queue->queue))
 		return;
