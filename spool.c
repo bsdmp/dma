@@ -117,7 +117,7 @@ fail:
 	if (queue->mailf != NULL)
 		fclose(queue->mailf);
 	close(fd);
-	unlink(fn);
+	unlinkat(spoolfd, fn, 0);
 	return (-1);
 }
 
@@ -273,7 +273,7 @@ linkspool(struct queue *queue)
 		       it->addr, it->queueid);
 	}
 
-	unlink(queue->tmpf);
+	unlinkat(spoolfd, queue->tmpf, 0);
 	return (0);
 
 delfiles:
@@ -352,8 +352,8 @@ fail:
 void
 delqueue(struct qitem *it)
 {
-	unlink(it->mailfn);
-	unlink(it->queuefn);
+	unlinkat(spoolfd, it->mailfn, 0);
+	unlinkat(spoolfd, it->queuefn, 0);
 	if (it->queuef != NULL)
 		fclose(it->queuef);
 	if (it->mailf != NULL)
