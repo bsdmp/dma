@@ -274,24 +274,12 @@ addrinfo_pack(const struct addrinfo *ai)
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "ai_flags", ai->ai_flags);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_flags: %i", nvlist_error(nvl));
 	nvlist_add_number(nvl, "ai_family", ai->ai_family);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_family: %i", nvlist_error(nvl));
 	nvlist_add_number(nvl, "ai_socktype", ai->ai_socktype);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_socktype: %i", nvlist_error(nvl));
 	nvlist_add_number(nvl, "ai_protocol", ai->ai_protocol);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_protocol: %i", nvlist_error(nvl));
 	nvlist_add_binary(nvl, "ai_addr", ai->ai_addr, (size_t)ai->ai_addrlen);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_addr: %i", nvlist_error(nvl));
 	if (ai->ai_canonname != NULL)
 		nvlist_add_string(nvl, "ai_canonname", ai->ai_canonname);
-	//if (nvlist_error(nvl) != 0)
-		//syslog(LOG_INFO, "==> err ai_canonname: %i", nvlist_error(nvl));
 
 	return (nvl);
 }
@@ -329,22 +317,17 @@ dh_srv_getaddrinfo(nvlist_t *nvlin, nvlist_t *nvlout)
 	}
 
 	error = getaddrinfo(hostname, servname, hintsp, &res);
-	//syslog(LOG_INFO, "dh_srv_getaddrinfo error=%i", error);
 	if (error != 0)
 		goto out;
 
 	for (cur = res, ii = 0; cur != NULL; cur = cur->ai_next, ii++) {
 		elem = addrinfo_pack(cur);
-		//if (nvlist_error(elem) != 0)
-			//syslog(LOG_INFO, "==> dh_srv_getaddrinfo(): %i",
-			    //nvlist_error(elem));
 		nvlist_movef_nvlist(nvlout, elem, "res%u", ii);
 	}
 
 	freeaddrinfo(res);
 	error = 0;
 out:
-	//nvlist_add_string(nvlout, "errstr", gai_strerror(error));
 	nvlist_add_number(nvlout, "error", error);
 	nvlist_add_number(nvlout, "errno", errno);
 }
@@ -360,12 +343,6 @@ dh_getaddrinfo(int fd, const char *hostname, const char *servname,
 	nvlist_t *nvl;
 	int error;
 
-	//FILE *dbg = fopen("/home/misha/dma.debug", "w"); /* !!! */
-	//if (dbg == NULL) {
-		//err(1, "fopen() failed");
-		//syslog(LOG_INFO, "dh_getaddrinfo(): fopen() failed");
-	//}
-
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "cmd", DH_CMD_GETADDRINFO);
 	nvlist_add_string(nvl, "hostname", hostname);
@@ -380,28 +357,15 @@ dh_getaddrinfo(int fd, const char *hostname, const char *servname,
 		nvlist_add_number(nvl, "hints.ai_protocol",
 		    hints->ai_protocol);
 	}
-	nvlist_add_string(nvl, "delimeter", "----");
-	//nvlist_fdump(nvl, dbg); /* !!! */
-	//syslog(LOG_INFO, "=> dh_getaddrinfo(): send request");
 	nvl = nvlist_xfer(fd, nvl);
-	//nvlist_fdump(nvl, dbg); /* !!! */
-	//syslog(LOG_INFO, "=> dh_getaddrinfo(): got answer");
-	//if (nvlist_empty(nvl))
-		//syslog(LOG_INFO, "=> dh_getaddrinfo(): got empty!");
 	if (nvl == NULL) {
-		//syslog(LOG_INFO, "=> dh_getaddrinfo(): got NULL");
 		return (EAI_MEMORY);
 	}
 	if (nvlist_get_number(nvl, "error") != 0) {
-		//syslog(LOG_INFO, "dh_getaddrinfo(): got error");
 		error = nvlist_get_number(nvl, "error");
 		nvlist_destroy(nvl);
 		return (error);
 	}
-
-
-	//syslog(LOG_INFO, "dh_getaddrinfo(): start answer processing");
-	//nvlist_fdump(nvl, dbg); /* !!! */
 
 	nvlai = NULL;
 	firstai = prevai = curai = NULL;
@@ -530,14 +494,9 @@ dh_srv_remote(int fd)
 {
 	nvlist_t *nvl, *nvlout;
 	int cmd;
-	FILE *dbg = fopen("/home/misha/dma2.debug", "w"); /* !!! */
-	openlog("dma-srv-remote", LOG_PID | LOG_NDELAY, LOG_MAIL);
-
-	syslog(LOG_INFO, "dh_srv_remote(): new instance");
 	while ((nvl = nvlist_recv(fd))) {
 		nvlist_fdump(nvl, dbg);
 		cmd = nvlist_take_number(nvl, "cmd");
-		syslog(LOG_INFO, "=> dh_srv_remote(): got request for cmd=%i", cmd);
 		nvlout = nvlist_create(0);
 
 		switch (cmd) {
@@ -559,8 +518,6 @@ dh_srv_remote(int fd)
 		}
 
 		nvlist_fdump(nvlout, dbg);
-		syslog(LOG_INFO, "=> dh_srv_remote(): will send answer for cmd=%i",
-		    cmd);
 		nvlist_send(fd, nvlout);
 		nvlist_destroy(nvlout);
 	}

@@ -191,8 +191,8 @@ extern FILE *yyin;
 
 /* conf.c */
 void trim_line(char *);
-void parse_conf();
-void parse_authfile();
+void parse_conf(void);
+void parse_authfile(void);
 
 /* crypto.c */
 void hmac_md5(unsigned char *, int, unsigned char *, int, unsigned char *);
