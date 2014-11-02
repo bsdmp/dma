@@ -186,7 +186,7 @@ int
 add_recp(struct queue *queue, const char *str, int expand)
 {
 	struct qitem *it, *tit;
-	struct passwd *pw;
+	//struct passwd *pw;
 	char *host;
 	int aliased = 0;
 
@@ -230,11 +230,11 @@ add_recp(struct queue *queue, const char *str, int expand)
 				LIST_REMOVE(it, next);
 			} else {
 				/* Local destination, check */
-				pw = getpwnam(it->addr);
-				if (pw == NULL)
+				//pw = getpwnam(it->addr);
+				if(dh_checklocal(dhsl, it->addr) == (uid_t)-1)
 					goto out;
 				/* XXX read .forward */
-				endpwent();
+				//endpwent();
 			}
 		}
 	} else {
@@ -450,24 +450,26 @@ main(int argc, char **argv)
 	spoolfd = dh_getfd(dhsg, DH_GETFD_SPOOLDIR);
 
 	set_username();
+	cap_enter();
 
 	/*
 	 * We never run as root.  If called by root, drop permissions
 	 * to the mail user.
 	 */
 	if (geteuid() == 0 || getuid() == 0) {
-		struct passwd *pw;
+		//struct passwd *pw;
+		uid_t pw;
 
 		errno = 0;
-		pw = getpwnam(DMA_ROOT_USER); /* CAP: casper */
-		if (pw == NULL) {
+		//pw = getpwnam(DMA_ROOT_USER); /* CAP: casper */
+		if ((pw = dh_checklocal(dhsl, DMA_ROOT_USER))) {
 			if (errno == 0)
 				errx(1, "user '%s' not found", DMA_ROOT_USER);
 			else
 				err(1, "cannot drop root privileges");
 		}
 
-		if (setuid(pw->pw_uid) != 0)
+		if (setuid(pw) != 0)
 			err(1, "cannot drop root privileges");
 
 		if (geteuid() == 0 || getuid() == 0)
@@ -477,7 +479,6 @@ main(int argc, char **argv)
 	atexit(deltmp);
 	init_random(); /* CAP: open */
 
-	cap_enter();
 
 	bzero(&queue, sizeof(queue));
 	LIST_INIT(&queue.queue);

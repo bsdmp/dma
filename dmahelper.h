@@ -26,6 +26,7 @@
 #define DH_CMD_CONNECT		3
 #define DH_CMD_OPEN		4
 #define DH_CMD_MKSTEMP		5
+#define DH_CMD_CHECKLOCAL	6
 
 #define DH_GETFD_SPOOLDIR	0
 #define DH_GETFD_DMACONF	1
@@ -41,6 +42,7 @@ int dh_open(int, const char *, int, int);
 int dh_open_locked(int, const char *, int flags, ...);
 int dh_getfd(int, int);
 int dh_mkstemp(int, char **);
+uid_t dh_checklocal(int , const char *);
 
 int dh_service(int, int);
 int dh_init(void);

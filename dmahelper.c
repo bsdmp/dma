@@ -1,5 +1,45 @@
 #include "dma.h"
 
+/* Internal processing of dh_checklocal() */
+/* We use getpwnam() to check if supplied user is local */
+static void
+dh_srv_checklocal(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	char *user;
+	struct passwd *pw;
+
+	user = nvlist_take_string(nvlin, "user");
+
+	/* XXX '-1' is not good as error indication */
+	if ((pw = getpwnam(user)))
+		nvlist_add_number(nvlout, "result", pw->pw_uid);
+	else {
+		nvlist_add_number(nvlout, "result", -1);
+		nvlist_add_number(nvlout, "errno", errno);
+	}
+	endpwent();
+}
+
+uid_t
+dh_checklocal(int fd, const char *user)
+{
+	nvlist_t *nvl;
+	int result;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", DH_CMD_CHECKLOCAL);
+	nvlist_add_string(nvl, "user", user);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	result = nvlist_get_number(nvl, "result");
+	if (result == -1)
+		errno = nvlist_get_number(nvl, "errno");
+	nvlist_destroy(nvl);
+
+	return (result);
+}
+
 /* Internal processing of mkstemp() */
 /* This function create tmp files only in DMA_SPOOLDIR */
 static void
@@ -543,6 +583,9 @@ dh_srv_local(int fd)
 			break;
 		case DH_CMD_MKSTEMP:
 			dh_srv_mkstemp(nvl, nvlout);
+			break;
+		case DH_CMD_CHECKLOCAL:
+			dh_srv_checklocal(nvl, nvlout);
 			break;
 		}
 

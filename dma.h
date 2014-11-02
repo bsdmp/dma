@@ -44,6 +44,7 @@
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <netdb.h>
+#include <pwd.h>
 
 #include "dmahelper.h"
 

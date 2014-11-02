@@ -225,7 +225,7 @@ deltmp(void)
 	struct stritem *t;
 
 	SLIST_FOREACH(t, &tmpfs, next) {
-		unlink(t->str);
+		unlinkat(spoolfd, t->str, 0);
 	}
 }
 
@@ -336,9 +336,9 @@ init_random(void)
 	unsigned int seed;
 	int rf;
 
-	rf = open("/dev/urandom", O_RDONLY);
+	rf = dh_open(dhsl, "/dev/urandom", O_RDONLY, 0);
 	if (rf == -1)
-		rf = open("/dev/random", O_RDONLY);
+		rf = dh_open(dhsl, "/dev/random", O_RDONLY, 0);
 
 	if (!(rf != -1 && read(rf, &seed, sizeof(seed)) == sizeof(seed)))
 		seed = (time(NULL) ^ getpid()) + (uintptr_t)&seed;
