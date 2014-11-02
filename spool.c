@@ -125,7 +125,7 @@ writequeuef(struct qitem *it)
 	int queuefd;
 
 	/* CAP: open, flock */
-	queuefd = open_locked(it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
+	queuefd = dh_open_locked(dhsl, it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
 	if (queuefd == -1)
 		return (-1);
 	if (fchmod(queuefd, 0660) < 0)
@@ -360,7 +360,7 @@ acquirespool(struct qitem *it)
 	int mailfd;
 
 	if (it->queuef == NULL) {
-		queuefd = open_locked(it->queuefn, O_RDWR|O_NONBLOCK);
+		queuefd = dh_open_locked(dhsr, it->queuefn, O_RDWR|O_NONBLOCK);
 		if (queuefd < 0)
 			goto fail;
 		it->queuef = fdopen(queuefd, "r+");

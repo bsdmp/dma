@@ -148,7 +148,7 @@ retry:
 	do_timeout(100, 0);
 
 	/* don't use O_CREAT here, because we might be running as the wrong user. */
-	mbox = open_locked(fn, O_WRONLY|O_APPEND);
+	mbox = dh_open_locked(dhsl, fn, O_WRONLY|O_APPEND);
 	if (mbox < 0) {
 		int e = errno;
 

@@ -94,6 +94,7 @@
 
 extern int dh;
 extern int dhsr;
+extern int dhsl;
 
 struct stritem {
 	SLIST_ENTRY(stritem) next;

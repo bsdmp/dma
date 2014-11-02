@@ -61,6 +61,7 @@
 
 int dh;
 int dhsr;
+int dhsl;
 
 static void deliver(struct qitem *);
 
@@ -437,6 +438,7 @@ main(int argc, char **argv)
 	int recp_from_header = 0;
 
 	dh = dh_init();
+	dhsl = dh_service(dh, DH_SERVICE_LOCAL);
 
 	set_username();
 

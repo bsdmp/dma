@@ -31,6 +31,7 @@ int dh_getaddrinfo(int, const char *, const char *, const struct addrinfo *,
     struct addrinfo **);
 int dh_connect(int, int *, const struct sockaddr *, socklen_t);
 int dh_open(int, const char *, int, int);
+int dh_open_locked(int, const char *, int flags, ...);
 
 int dh_service(int, int);
 int dh_init(void);
