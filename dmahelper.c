@@ -306,6 +306,7 @@ dh_srv_getaddrinfo(nvlist_t *nvlin, nvlist_t *nvlout)
 		    "hints.ai_socktype");
 		hints.ai_protocol = nvlist_get_number(nvlin,
 		    "hints.ai_protocol");
+//		TODO: Check this in libcapsicum
 //		hints.ai_addrlen = 0;
 //		hints.ai_addr = NULL;
 //		hints.ai_canonname = NULL;
