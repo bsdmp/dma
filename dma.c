@@ -339,8 +339,10 @@ retry:
 
 	if (it->remote) {
 		error = deliver_remote(it);
+		close(dhsl);
 	} else {
 		error = deliver_local(it);
+		close(dhsr);
 	}
 
 	switch (error) {
