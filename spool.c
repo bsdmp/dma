@@ -71,15 +71,18 @@
 int
 newspoolf(struct queue *queue)
 {
-	char fn[PATH_MAX+1];
+	char *fn;
 	struct stat st;
 	struct stritem *t;
 	int fd;
 
-	if (snprintf(fn, sizeof(fn), "%s/%s", DMA_SPOOLDIR, "tmp_XXXXXXXXXX") <= 0)
+	fn = malloc(PATH_MAX+1);
+
+	if (snprintf(fn, sizeof(fn), "%s", "tmp_XXXXXXXXXX") <= 0)
 		return (-1);
 
-	fd = dh_mkstemp(dhsl, fn);
+	fd = dh_mkstemp(dhsl, &fn);
+	syslog(LOG_INFO, "tempfile=%s", fn);
 	if (fd < 0)
 		return (-1);
 	/* XXX group rights */
@@ -125,7 +128,8 @@ writequeuef(struct qitem *it)
 	int queuefd;
 
 	/* CAP: open, flock */
-	queuefd = dh_open_locked(dhsl, it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
+	//queuefd = dh_open_locked(dhsl, it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
+	queuefd = open_locked(it->queuefn, O_CREAT|O_EXCL|O_RDWR, 0660);
 	if (queuefd == -1)
 		return (-1);
 	if (fchmod(queuefd, 0660) < 0)
@@ -160,11 +164,14 @@ readqueuef(struct queue *queue, char *queuefn)
 	char *s;
 	char *queueid = NULL, *sender = NULL, *addr = NULL;
 	struct qitem *it = NULL;
+	int queuefd;
 
 	bzero(&itmqueue, sizeof(itmqueue));
 	LIST_INIT(&itmqueue.queue);
 
-	queuef = fopen(queuefn, "r");
+	/* XXX error checking */
+	queuefd = openat(spoolfd, it->queuefn, O_RDONLY);
+	queuef = fdopen(queuefd, "r");
 	if (queuef == NULL)
 		goto out;
 
@@ -244,19 +251,20 @@ linkspool(struct queue *queue)
 	LIST_FOREACH(it, &queue->queue, next) {
 		if (asprintf(&it->queueid, "%s.%"PRIxPTR, queue->id, (uintptr_t)it) <= 0)
 			goto delfiles;
-		if (asprintf(&it->queuefn, "%s/Q%s", DMA_SPOOLDIR, it->queueid) <= 0)
+		if (asprintf(&it->queuefn, "Q%s", it->queueid) <= 0)
 			goto delfiles;
-		if (asprintf(&it->mailfn, "%s/M%s", DMA_SPOOLDIR, it->queueid) <= 0)
+		if (asprintf(&it->mailfn, "M%s", it->queueid) <= 0)
 			goto delfiles;
 
 		/* Neither file may not exist yet */
-		if (stat(it->queuefn, &st) == 0 || stat(it->mailfn, &st) == 0)
+		if (fstatat(spoolfd, it->queuefn, &st, 0) == 0 ||
+		    fstatat(spoolfd, it->mailfn, &st, 0) == 0)
 			goto delfiles;
 
 		if (writequeuef(it) != 0) /* CAP+: open, fsync, fflush */
 			goto delfiles;
 
-		if (link(queue->tmpf, it->mailfn) != 0)
+		if (linkat(spoolfd, queue->tmpf, spoolfd, it->mailfn, 0) != 0)
 			goto delfiles;
 	}
 
@@ -270,8 +278,8 @@ linkspool(struct queue *queue)
 
 delfiles:
 	LIST_FOREACH(it, &queue->queue, next) {
-		unlink(it->mailfn);
-		unlink(it->queuefn);
+		unlinkat(spoolfd, it->mailfn, 0);
+		unlinkat(spoolfd, it->queuefn, 0);
 	}
 	return (-1);
 }
@@ -285,15 +293,9 @@ load_queue(struct queue *queue)
 	struct dirent *de;
 	char *queuefn;
 	char *mailfn;
-	int spoolfd;
 
 	bzero(queue, sizeof(*queue));
 	LIST_INIT(&queue->queue);
-
-	spoolfd = dh_getfd(dhsg, DH_GETFD_SPOOLDIR);
-	syslog(LOG_INFO, "==> load_queue spoolfd=%i", spoolfd);
-	if (spoolfd < 0)
-		goto fail;
 
 	spooldir = fdopendir(spoolfd);
 	if (spooldir == NULL)
@@ -366,7 +368,7 @@ acquirespool(struct qitem *it)
 	int mailfd;
 
 	if (it->queuef == NULL) {
-		queuefd = dh_open_locked(dhsr, it->queuefn, O_RDWR|O_NONBLOCK);
+		queuefd = open_locked(it->queuefn, O_RDWR|O_NONBLOCK);
 		if (queuefd < 0)
 			goto fail;
 		it->queuef = fdopen(queuefd, "r+");
@@ -376,7 +378,7 @@ acquirespool(struct qitem *it)
 
 	if (it->mailf == NULL) {
 		/* XXX: changed to use open() and fdopen() */
-		mailfd = dh_open(dhsr, it->mailfn, O_RDONLY, 0);
+		mailfd = openat(spoolfd, it->mailfn, O_RDONLY, 0);
 		if (mailfd < 0)
 			goto fail;
 		it->mailf = fdopen(mailfd, "r");
@@ -441,9 +443,9 @@ flushqueue_signal(void)
         char *flushfn = NULL;
 	int fd;
 
-        if (asprintf(&flushfn, "%s/%s", DMA_SPOOLDIR, SPOOL_FLUSHFILE) < 0)
+        if (asprintf(&flushfn, "%s", SPOOL_FLUSHFILE) < 0)
 		return (-1);
-	fd = open(flushfn, O_CREAT|O_WRONLY|O_TRUNC, 0660);
+	fd = openat(spoolfd, flushfn, O_CREAT|O_WRONLY|O_TRUNC, 0660);
 	free(flushfn);
 	if (fd < 0) {
 		syslog(LOG_ERR, "could not open flush file: %m");

@@ -40,7 +40,7 @@ int dh_connect(int, int *, const struct sockaddr *, socklen_t);
 int dh_open(int, const char *, int, int);
 int dh_open_locked(int, const char *, int flags, ...);
 int dh_getfd(int, int);
-int dh_mkstemp(int, char *);
+int dh_mkstemp(int, char **);
 
 int dh_service(int, int);
 int dh_init(void);

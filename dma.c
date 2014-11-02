@@ -63,6 +63,7 @@ int dh;
 int dhsr;
 int dhsl;
 int dhsg;
+int spoolfd;
 
 static void deliver(struct qitem *);
 
@@ -446,6 +447,7 @@ main(int argc, char **argv)
 	dh = dh_init();
 	dhsl = dh_service(dh, DH_SERVICE_LOCAL);
 	dhsg = dh_service(dh, DH_SERVICE_GLOBAL);
+	spoolfd = dh_getfd(dhsg, DH_GETFD_SPOOLDIR);
 
 	set_username();
 

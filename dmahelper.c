@@ -1,25 +1,34 @@
 #include "dma.h"
 
 /* Internal processing of mkstemp() */
+/* This function create tmp files only in DMA_SPOOLDIR */
 static void
 dh_srv_mkstemp(nvlist_t *nvlin, nvlist_t *nvlout)
 {
 	char *template;
 	int ofd;
+	char fn[PATH_MAX+1];
+	char *token, *string, *tofree, *last;
 
 	template = nvlist_take_string(nvlin, "template");
-	ofd = mkstemp(template);
+	/* XXX error checks */
+	snprintf(fn, sizeof(fn), "%s/%s", DMA_SPOOLDIR, template);
+	ofd = mkstemp(fn);
+
+	tofree = string = strdup(fn);
+	while ((token = strsep(&string, "/")) != NULL)
+		last = strdup(token); /* XXX memleak */
+	free(tofree);
 
 	nvlist_move_descriptor(nvlout, "ofd", ofd);
+	nvlist_move_string(nvlout, "template", last);
 	if (ofd < 0)
 		nvlist_add_number(nvlout, "errno", errno);
-	else
-		nvlist_add_number(nvlout, "errno", 0);
 }
 
 /* External interface for mkstemp */
 int
-dh_mkstemp(int fd, char *template)
+dh_mkstemp(int fd, char **template)
 {
 	nvlist_t *nvl;
 	int ofd;
@@ -27,11 +36,13 @@ dh_mkstemp(int fd, char *template)
 	nvl = nvlist_create(0);
 
 	nvlist_add_number(nvl, "cmd", DH_CMD_MKSTEMP);
-	nvlist_add_string(nvl, "template", template);
+	nvlist_add_string(nvl, "template", *template);
 
 	nvl = nvlist_xfer(fd, nvl);
 
 	ofd = nvlist_take_descriptor(nvl, "ofd");
+	*template = nvlist_take_string(nvl, "template");
+	syslog(LOG_INFO, "dh_mkstemp(): template=%s", *template);
 	if (ofd == -1)
 		errno = nvlist_get_number(nvl, "errno");
 	nvlist_destroy(nvl);
@@ -550,7 +561,7 @@ dh_srv_global(int fd)
 	int aliasesfd = open(DMA_ALIASES, O_RDONLY);
 	int authconffd = open(DMA_AUTHCONF, O_RDONLY);
 	int dmaconffd = open(DMA_CONF, O_RDONLY);
-	int spoolfd = open(DMA_SPOOLDIR, O_DIRECTORY);
+	int spooldirfd = open(DMA_SPOOLDIR, O_DIRECTORY);
 
 	cap_enter();
 
@@ -569,7 +580,7 @@ dh_srv_global(int fd)
 			nvlist_move_descriptor(nvlout, "ofd", dmaconffd);
 			break;
 		case DH_GETFD_SPOOLDIR:
-			nvlist_move_descriptor(nvlout, "ofd", spoolfd);
+			nvlist_move_descriptor(nvlout, "ofd", spooldirfd);
 			break;
 		}
 
