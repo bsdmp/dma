@@ -62,6 +62,7 @@
 int dh;
 int dhsr;
 int dhsl;
+int dhsg;
 
 static void deliver(struct qitem *);
 
@@ -139,7 +140,11 @@ set_from(struct queue *queue, const char *osender)
 static int
 read_aliases(void)
 {
-	yyin = fopen(config.aliases, "r");
+	int aliasesfd;
+
+	aliasesfd = dh_getfd(dhsg, DH_GETFD_ALIASES);
+
+	yyin = fdopen(aliasesfd, "r");
 	if (yyin == NULL) {
 		/*
 		 * Non-existing aliases file is not a fatal error
@@ -152,6 +157,7 @@ read_aliases(void)
 	if (yyparse())
 		return (-1);	/* fatal error, probably malloc() */
 	fclose(yyin);
+	close(aliasesfd);
 	return (0);
 }
 
@@ -384,7 +390,6 @@ run_queue(struct queue *queue)
 {
 	struct qitem *it;
 
-	cap_enter();
 	if (cap_sandboxed())
 		syslog(LOG_INFO, "child sandboxed");
 
@@ -440,6 +445,7 @@ main(int argc, char **argv)
 
 	dh = dh_init();
 	dhsl = dh_service(dh, DH_SERVICE_LOCAL);
+	dhsg = dh_service(dh, DH_SERVICE_GLOBAL);
 
 	set_username();
 
@@ -468,6 +474,8 @@ main(int argc, char **argv)
 
 	atexit(deltmp);
 	init_random(); /* CAP: open */
+
+	cap_enter();
 
 	bzero(&queue, sizeof(queue));
 	LIST_INIT(&queue.queue);
@@ -587,10 +595,9 @@ skipopts:
 	if (sigaction(SIGHUP, &act, NULL) != 0)
 		syslog(LOG_WARNING, "can not set signal handler: %m");
 
-	parse_conf(CONF_PATH "/dma.conf"); /* CAP: fopen */
+	parse_conf(); /* CAP: fopen */
 
-	if (config.authpath != NULL)
-		parse_authfile(config.authpath); /* CAP: fopen */
+	parse_authfile(); /* CAP: fopen */
 
 	if (showq) {
 		if (load_queue(&queue) < 0) /* CAP?+: opendir, stat, syslog */
@@ -614,7 +621,7 @@ skipopts:
 		errlog(1, NULL);
 
 	if (newspoolf(&queue) != 0) /* CAP: mkstemp, fstat, fchmod, unlink */
-		errlog(1, "can not create temp file in `%s'", config.spooldir);
+		errlog(1, "can not create temp file in `%s'", DMA_SPOOLDIR);
 
 	setlogident("%s", queue.id); /* CAP: openlog */
 

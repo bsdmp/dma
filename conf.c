@@ -91,17 +91,19 @@ chomp(char *str)
  * A line starting with # is treated as comment and ignored.
  */
 void
-parse_authfile(const char *path)
+parse_authfile()
 {
 	char line[2048];
 	struct authuser *au;
 	FILE *a;
 	char *data;
 	int lineno = 0;
+	int authconffd;
 
-	a = fopen(path, "r");
+	authconffd = dh_getfd(dhsg, DH_GETFD_AUTHCONF);
+	a = fdopen(authconffd, "r");
 	if (a == NULL) {
-		errlog(1, "can not open auth file `%s'", path);
+		errlog(1, "can not open auth file `%s'", DMA_AUTHCONF);
 		/* NOTREACHED */
 	}
 
@@ -132,7 +134,7 @@ parse_authfile(const char *path)
 		    au->host == NULL ||
 		    au->password == NULL) {
 			errlogx(1, "syntax error in authfile %s:%d",
-				path, lineno);
+				DMA_AUTHCONF, lineno);
 			/* NOTREACHED */
 		}
 
@@ -147,20 +149,22 @@ parse_authfile(const char *path)
  * Check for bad things[TM]
  */
 void
-parse_conf(const char *config_path)
+parse_conf()
 {
 	char *word;
 	char *data;
 	FILE *conf;
 	char line[2048];
 	int lineno = 0;
+	int dmaconffd;
 
-	conf = fopen(config_path, "r");
+	dmaconffd = dh_getfd(dhsg, DH_GETFD_DMACONF);
+	conf = fdopen(dmaconffd, "r");
 	if (conf == NULL) {
 		/* Don't treat a non-existing config file as error */
 		if (errno == ENOENT)
 			return;
-		errlog(1, "can not open config `%s'", config_path);
+		errlog(1, "can not open config `%s'", DMA_CONF);
 		/* NOTREACHED */
 	}
 
@@ -232,15 +236,16 @@ parse_conf(const char *config_path)
 		else if (strcmp(word, "NULLCLIENT") == 0 && data == NULL)
 			config.features |= NULLCLIENT;
 		else {
-			errlogx(1, "syntax error in %s:%d", config_path, lineno);
+			errlogx(1, "syntax error in %s:%d", DMA_CONF, lineno);
 			/* NOTREACHED */
 		}
 	}
 
 	if ((config.features & NULLCLIENT) && config.smarthost == NULL) {
-		errlogx(1, "%s: NULLCLIENT requires SMARTHOST", config_path);
+		errlogx(1, "%s: NULLCLIENT requires SMARTHOST", DMA_CONF);
 		/* NOTREACHED */
 	}
 
 	fclose(conf);
+	close(dmaconffd);
 }

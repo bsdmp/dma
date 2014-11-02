@@ -1,4 +1,43 @@
-#include "dmahelper.h"
+#include "dma.h"
+
+/* Internal processing of mkstemp() */
+static void
+dh_srv_mkstemp(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	char *template;
+	int ofd;
+
+	template = nvlist_take_string(nvlin, "template");
+	ofd = mkstemp(template);
+
+	nvlist_move_descriptor(nvlout, "ofd", ofd);
+	if (ofd < 0)
+		nvlist_add_number(nvlout, "errno", errno);
+	else
+		nvlist_add_number(nvlout, "errno", 0);
+}
+
+/* External interface for mkstemp */
+int
+dh_mkstemp(int fd, char *template)
+{
+	nvlist_t *nvl;
+	int ofd;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_MKSTEMP);
+	nvlist_add_string(nvl, "template", template);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	ofd = nvlist_take_descriptor(nvl, "ofd");
+	if (ofd == -1)
+		errno = nvlist_get_number(nvl, "errno");
+	nvlist_destroy(nvl);
+
+	return (ofd);
+}
 
 /* Internal processing of open() */
 /* TODO: we can fork this, then open SPOOLDIR and cap_enter */
@@ -410,12 +449,28 @@ dh_res_init(int fd)
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "cmd", DH_CMD_RES_INIT);
-	nvlist_add_string(nvl, "delimeter", "----");
 
 	nvl = nvlist_xfer(fd, nvl);
 	nvlist_destroy(nvl);
 
 	return (0);
+}
+
+int
+dh_getfd(int fd, int dir)
+{
+	nvlist_t *nvl;
+	int ofd;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", dir);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	ofd = nvlist_take_descriptor(nvl, "ofd");
+	nvlist_destroy(nvl);
+
+	return (ofd);
 }
 
 /* Loop for remtoe services */
@@ -475,6 +530,47 @@ dh_srv_local(int fd)
 		case DH_CMD_OPEN:
 			dh_srv_open(nvl, nvlout);
 			break;
+		case DH_CMD_MKSTEMP:
+			dh_srv_mkstemp(nvl, nvlout);
+			break;
+		}
+
+		nvlist_send(fd, nvlout);
+		nvlist_destroy(nvlout);
+	}
+}
+
+/* Loop for global services */
+static void
+dh_srv_global(int fd)
+{
+	nvlist_t *nvl, *nvlout;
+	int cmd;
+
+	int aliasesfd = open(DMA_ALIASES, O_RDONLY);
+	int authconffd = open(DMA_AUTHCONF, O_RDONLY);
+	int dmaconffd = open(DMA_CONF, O_RDONLY);
+	int spoolfd = open(DMA_SPOOLDIR, O_DIRECTORY);
+
+	cap_enter();
+
+	while ((nvl = nvlist_recv(fd))) {
+		cmd = nvlist_take_number(nvl, "cmd");
+		nvlout = nvlist_create(0);
+
+		switch (cmd) {
+		case DH_GETFD_ALIASES:
+			nvlist_move_descriptor(nvlout, "ofd", aliasesfd);
+			break;
+		case DH_GETFD_AUTHCONF:
+			nvlist_move_descriptor(nvlout, "ofd", authconffd);
+			break;
+		case DH_GETFD_DMACONF:
+			nvlist_move_descriptor(nvlout, "ofd", dmaconffd);
+			break;
+		case DH_GETFD_SPOOLDIR:
+			nvlist_move_descriptor(nvlout, "ofd", spoolfd);
+			break;
 		}
 
 		nvlist_send(fd, nvlout);
@@ -492,6 +588,9 @@ dh_srv_dispatch(int fd, int service)
 		break;
 	case DH_SERVICE_LOCAL:
 		dh_srv_local(fd);
+		break;
+	case DH_SERVICE_GLOBAL:
+		dh_srv_global(fd);
 		break;
 	}
 

@@ -49,6 +49,11 @@
 
 #define VERSION	"DragonFly Mail Agent " DMA_VERSION " (capability sandbox enabled)"
 
+#define DMA_ALIASES	"/etc/aliases"
+#define DMA_AUTHCONF	"/etc/dma/auth.conf"
+#define DMA_CONF	"/etc/dma/dma.conf"
+#define DMA_SPOOLDIR	"/var/spool/dma"
+
 #define BUF_SIZE	2048
 #define ERRMSG_SIZE	200
 #define USERNAME_SIZE	50
@@ -95,6 +100,7 @@
 extern int dh;
 extern int dhsr;
 extern int dhsl;
+extern int dhsg;
 
 struct stritem {
 	SLIST_ENTRY(stritem) next;
@@ -183,8 +189,8 @@ extern FILE *yyin;
 
 /* conf.c */
 void trim_line(char *);
-void parse_conf(const char *);
-void parse_authfile(const char *);
+void parse_conf();
+void parse_authfile();
 
 /* crypto.c */
 void hmac_md5(unsigned char *, int, unsigned char *, int, unsigned char *);
