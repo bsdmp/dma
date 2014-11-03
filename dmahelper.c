@@ -1,43 +1,96 @@
 #include "dma.h"
 
-/* Internal processing of dh_checklocal() */
-/* We use getpwnam() to check if supplied user is local */
 static void
-dh_srv_checklocal(nvlist_t *nvlin, nvlist_t *nvlout)
+dh_srv_getpwuid(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	uid_t uid;
+	struct passwd *pw;
+
+	uid = nvlist_get_number(nvlin, "uid");
+
+	if ((pw = getpwuid(uid))) {
+		nvlist_add_number(nvlout, "result", 1);
+		nvlist_add_string(nvlout, "pw_name", pw->pw_name);
+	} else {
+		nvlist_add_number(nvlout, "result", 0);
+		nvlist_add_number(nvlout, "errno", errno);
+	}
+
+	/* XXX: Do we need this? */
+	endpwent();
+}
+
+struct passwd *
+dh_getpwuid(int fd, uid_t uid)
+{
+	nvlist_t *nvl;
+	int result;
+	struct passwd *pw;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", DH_CMD_GETPWUID);
+	nvlist_add_number(nvl, "uid", uid);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	result = nvlist_get_number(nvl, "result");
+	if (result == 0) {
+		errno = nvlist_get_number(nvl, "errno");
+		nvlist_destroy(nvl);
+		return NULL;
+	} else {
+		pw = malloc(sizeof(struct passwd));
+		memset(pw, 0, sizeof(struct passwd));
+		pw->pw_name = nvlist_take_string(nvl, "pw_name");
+	}
+
+	return (pw);
+}
+static void
+dh_srv_getpwnam(nvlist_t *nvlin, nvlist_t *nvlout)
 {
 	char *user;
 	struct passwd *pw;
 
 	user = nvlist_take_string(nvlin, "user");
 
-	/* XXX '-1' is not good as error indication */
-	if ((pw = getpwnam(user)))
-		nvlist_add_number(nvlout, "result", pw->pw_uid);
-	else {
-		nvlist_add_number(nvlout, "result", -1);
+	if ((pw = getpwnam(user))) {
+		nvlist_add_number(nvlout, "result", 1);
+		nvlist_add_number(nvlout, "pw_uid", pw->pw_uid);
+	} else {
+		nvlist_add_number(nvlout, "result", 0);
 		nvlist_add_number(nvlout, "errno", errno);
 	}
+
+	/* XXX: Do we need this? */
 	endpwent();
 }
 
-uid_t
-dh_checklocal(int fd, const char *user)
+struct passwd *
+dh_getpwnam(int fd, const char *user)
 {
 	nvlist_t *nvl;
 	int result;
+	struct passwd *pw;
 
 	nvl = nvlist_create(0);
-	nvlist_add_number(nvl, "cmd", DH_CMD_CHECKLOCAL);
+	nvlist_add_number(nvl, "cmd", DH_CMD_GETPWNAM);
 	nvlist_add_string(nvl, "user", user);
 
 	nvl = nvlist_xfer(fd, nvl);
 
 	result = nvlist_get_number(nvl, "result");
-	if (result == -1)
+	if (result == 0) {
 		errno = nvlist_get_number(nvl, "errno");
-	nvlist_destroy(nvl);
+		nvlist_destroy(nvl);
+		return NULL;
+	} else {
+		pw = malloc(sizeof(struct passwd));
+		memset(pw, 0, sizeof(struct passwd));
+		pw->pw_uid = nvlist_get_number(nvl, "pw_uid");
+	}
 
-	return (result);
+	return (pw);
 }
 
 /* Internal processing of mkstemp() */
@@ -540,8 +593,11 @@ dh_srv_local(int fd)
 		case DH_CMD_MKSTEMP:
 			dh_srv_mkstemp(nvl, nvlout);
 			break;
-		case DH_CMD_CHECKLOCAL:
-			dh_srv_checklocal(nvl, nvlout);
+		case DH_CMD_GETPWNAM:
+			dh_srv_getpwnam(nvl, nvlout);
+			break;
+		case DH_CMD_GETPWUID:
+			dh_srv_getpwuid(nvl, nvlout);
 			break;
 		}
 

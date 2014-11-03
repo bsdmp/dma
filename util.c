@@ -192,7 +192,7 @@ check_username(const char *name, uid_t ckuid)
 
 	if (name == NULL)
 		return (0);
-	pwd = getpwnam(name);
+	pwd = dh_getpwnam(dhsl, name);
 	if (pwd == NULL || pwd->pw_uid != ckuid)
 		return (0);
 	snprintf(username, sizeof(username), "%s", name);
@@ -211,7 +211,7 @@ set_username(void)
 		return;
 	if (check_username(getenv("USER"), useruid))
 		return;
-	pwd = getpwuid(useruid);
+	pwd = dh_getpwuid(dhsl, useruid);
 	if (pwd != NULL && pwd->pw_name != NULL && pwd->pw_name[0] != '\0') {
 		if (check_username(pwd->pw_name, useruid))
 			return;
