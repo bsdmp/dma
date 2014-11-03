@@ -718,6 +718,30 @@ dh_init(void)
 {
 	int sv[2];
 	pid_t pid;
+
+	/*
+	 * We never run as root.  If called by root, drop permissions
+	 * to the mail user.
+	 */
+	if (geteuid() == 0 || getuid() == 0) {
+		struct passwd *pw;
+
+		errno = 0;
+		pw = getpwnam(DMA_ROOT_USER); /* CAP: casper */
+		if (pw == NULL) {
+			if (errno == 0)
+				errx(1, "user '%s' not found", DMA_ROOT_USER);
+			else
+				err(1, "cannot drop root privileges");
+		}
+
+		if (setuid(pw->pw_uid) != 0)
+			err(1, "cannot drop root privileges");
+
+		if (geteuid() == 0 || getuid() == 0)
+			errx(1, "cannot drop root privileges");
+	}
+
 	if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1)
 		return (-1);
 
