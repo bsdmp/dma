@@ -5,3 +5,5 @@ Capsicum unresolved issues:
  - better privilege separation, now we simply create local/global
    daemons and grab spoolfd right at the beginning of the execution;
  - look for XXX:'s and TODO:'s in comments :-)
+ - check if we can run dma-mbox-create as external helper;
+ - evaluate needness for #ifdef's for CAPSICUM compilation;
