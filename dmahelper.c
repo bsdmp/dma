@@ -153,12 +153,6 @@ dh_srv_open(nvlist_t *nvlin, nvlist_t *nvlout)
 	int flags;
 	int mode;
 	int ofd;
-	FILE *dbg = fopen("/home/misha/dma.debug", "w"); /* !!! */
-	if (dbg == NULL) {
-	      err(1, "fopen() failed");
-	      syslog(LOG_INFO, "dh_getaddrinfo(): fopen() failed");
-	}
-	nvlist_fdump(nvlin, dbg);
 
 	path = nvlist_take_string(nvlin, "path");
 	flags = nvlist_take_number(nvlin, "flags");
