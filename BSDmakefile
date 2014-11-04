@@ -28,4 +28,7 @@ WARNS?=	6
 YFLAGS+=	-i
 CLEANFILES+=	aliases_parse.i
 
+cscope:
+	cscope -b *.c *.h
+
 .include <bsd.prog.mk>
