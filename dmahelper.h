@@ -37,6 +37,7 @@
 #define DH_GETFD_DMACONF	1
 #define DH_GETFD_ALIASES	2
 #define DH_GETFD_AUTHCONF	3
+#define DH_GETFD_MAILDIR	4
 
 int dh_res_init(int);
 int dh_res_search(int, const char *, int, int, u_char *, int);
@@ -44,7 +45,6 @@ int dh_getaddrinfo(int, const char *, const char *, const struct addrinfo *,
     struct addrinfo **);
 int dh_connect(int, int *, const struct sockaddr *, socklen_t);
 int dh_open(int, const char *, int, int);
-int dh_open_locked(int, const char *, int flags, ...);
 int dh_getfd(int, int);
 int dh_mkstemp(int, char **);
 struct passwd *dh_getpwnam(int, const char *);

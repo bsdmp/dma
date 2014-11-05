@@ -244,7 +244,7 @@ void dh_errlogx(int, int, const char *, ...) __attribute__((__format__ (__printf
 void set_username(void);
 void deltmp(void);
 int do_timeout(int, int);
-int open_locked(const char *, int, ...);
+int openat_locked(int, const char *, int, ...);
 char *rfc822date(void);
 int strprefixcmp(const char *, const char *);
 void init_random(void);

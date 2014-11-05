@@ -1,4 +1,5 @@
 #include "dma.h"
+#include <paths.h>
 
 /* gethostname() */
 
@@ -311,41 +312,6 @@ dh_srv_open(nvlist_t *nvlin, nvlist_t *nvlout)
 	nvlist_add_number(nvlout, "errno", errno);
 }
 
-/*
- * External interface for open_locked()
- * We have this because this function is called in local/remote and
- * global branches of execution, so we must specify proper 'fd' to
- * get information from
- */
-int
-dh_open_locked(int dfd, const char *fname, int flags, ...)
-{
-	int mode = 0;
-
-	if (flags & O_CREAT) {
-		va_list ap;
-		va_start(ap, flags);
-		mode = va_arg(ap, int);
-		va_end(ap);
-	}
-
-#ifndef O_EXLOCK
-	int fd, save_errno;
-
-	fd = dh_open(dfd, fname, flags, mode);
-	if (fd < 0)
-		return(fd);
-	if (flock(fd, LOCK_EX|((flags & O_NONBLOCK)? LOCK_NB: 0)) < 0) {
-		save_errno = errno;
-		close(fd);
-		errno = save_errno;
-		return(-1);
-	}
-	return(fd);
-#else
-	return(dh_open(dfd, fname, flags|O_EXLOCK, mode));
-#endif
-}
 /* External interface for open() */
 /* TODO: 'int mode' must be '...' */
 int
@@ -779,6 +745,7 @@ dh_srv_global(int fd)
 	int authconffd = open(DMA_AUTHCONF, O_RDONLY);
 	int dmaconffd = open(DMA_CONF, O_RDONLY);
 	int spooldirfd = open(DMA_SPOOLDIR, O_DIRECTORY);
+	int maildirfd = open(_PATH_MAILDIR, O_DIRECTORY);
 
 	cap_enter();
 
@@ -798,6 +765,9 @@ dh_srv_global(int fd)
 			break;
 		case DH_GETFD_SPOOLDIR:
 			nvlist_move_descriptor(nvlout, "ofd", spooldirfd);
+			break;
+		case DH_GETFD_MAILDIR:
+			nvlist_move_descriptor(nvlout, "ofd", maildirfd);
 			break;
 		}
 

@@ -136,8 +136,9 @@ deliver_local(struct qitem *it)
 	int hadnl = 0;
 	off_t mboxlen;
 	time_t now = time(NULL);
+	int atfd;
 
-	error = snprintf(fn, sizeof(fn), "%s/%s", _PATH_MAILDIR, it->addr);
+	error = snprintf(fn, sizeof(fn), "%s", it->addr);
 	if (error < 0 || (size_t)error >= sizeof(fn)) {
 		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: %m");
 		return (1);
@@ -147,8 +148,14 @@ retry:
 	/* wait for a maximum of 100s to get the lock to the file */
 	do_timeout(100, 0);
 
+	atfd = dh_getfd(dhsg, DH_GETFD_MAILDIR);
+	if (atfd < 0) {
+		dh_syslog(dhs, LOG_ERR, "can not get MAILDIR atfd");
+		return (1);
+	}
+
 	/* don't use O_CREAT here, because we might be running as the wrong user. */
-	mbox = dh_open_locked(dhs, fn, O_WRONLY|O_APPEND);
+	mbox = openat_locked(atfd, fn, O_WRONLY|O_APPEND);
 	if (mbox < 0) {
 		int e = errno;
 

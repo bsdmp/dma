@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <paths.h>
 #include <pwd.h>
 #include <setjmp.h>
 #include <signal.h>
@@ -276,7 +277,7 @@ disable:
 }
 
 int
-open_locked(const char *fname, int flags, ...)
+openat_locked(int atfd, const char *fname, int flags, ...)
 {
 	int mode = 0;
 
@@ -290,9 +291,7 @@ open_locked(const char *fname, int flags, ...)
 #ifndef O_EXLOCK
 	int fd, save_errno;
 
-//	fd = open(fname, flags, mode);
-//	fd = dh_open(dhsr, fname, flags, mode);
-	fd = openat(spoolfd, fname, flags, mode);
+	fd = openat(atfd, fname, flags, mode);
 	if (fd < 0)
 		return(fd);
 	if (flock(fd, LOCK_EX|((flags & O_NONBLOCK)? LOCK_NB: 0)) < 0) {
@@ -303,9 +302,7 @@ open_locked(const char *fname, int flags, ...)
 	}
 	return(fd);
 #else
-//	return(open(fname, flags|O_EXLOCK, mode));
-//	return(dh_open(dhsr, fname, flags|O_EXLOCK, mode));
-	return(openat(spoolfd, fname, flags|O_EXLOCK, mode));
+	return(openat(atfd, fname, flags|O_EXLOCK, mode));
 #endif
 }
 
