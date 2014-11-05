@@ -63,7 +63,7 @@ trim_line(char *line)
 	linelen = strlen(line);
 	if (line[0] == '.') {
 		if ((linelen + 2) > 1000) {
-			syslog(LOG_CRIT, "Cannot escape leading dot.  Buffer overflow");
+			dh_syslog(dhs, LOG_CRIT, "Cannot escape leading dot.  Buffer overflow");
 			exit(1);
 		}
 		memmove((line + 1), line, (linelen + 1));
@@ -103,7 +103,7 @@ parse_authfile()
 	authconffd = dh_getfd(dhsg, DH_GETFD_AUTHCONF);
 	a = fdopen(authconffd, "r");
 	if (a == NULL) {
-		errlog(1, "can not open auth file `%s'", DMA_AUTHCONF);
+		dh_errlog(dhs, 1, "can not open auth file `%s'", DMA_AUTHCONF);
 		/* NOTREACHED */
 	}
 
@@ -123,7 +123,7 @@ parse_authfile()
 
 		au = calloc(1, sizeof(*au));
 		if (au == NULL)
-			errlog(1, NULL);
+			dh_errlog(dhs, 1, NULL);
 
 		data = strdup(line);
 		au->login = strsep(&data, "|");
@@ -133,7 +133,7 @@ parse_authfile()
 		if (au->login == NULL ||
 		    au->host == NULL ||
 		    au->password == NULL) {
-			errlogx(1, "syntax error in authfile %s:%d",
+			dh_errlogx(dhs, 1, "syntax error in authfile %s:%d",
 				DMA_AUTHCONF, lineno);
 			/* NOTREACHED */
 		}
@@ -164,7 +164,7 @@ parse_conf()
 		/* Don't treat a non-existing config file as error */
 		if (errno == ENOENT)
 			return;
-		errlog(1, "can not open config `%s'", DMA_CONF);
+		dh_errlog(dhs, 1, "can not open config `%s'", DMA_CONF);
 		/* NOTREACHED */
 	}
 
@@ -236,13 +236,13 @@ parse_conf()
 		else if (strcmp(word, "NULLCLIENT") == 0 && data == NULL)
 			config.features |= NULLCLIENT;
 		else {
-			errlogx(1, "syntax error in %s:%d", DMA_CONF, lineno);
+			dh_errlogx(dhs, 1, "syntax error in %s:%d", DMA_CONF, lineno);
 			/* NOTREACHED */
 		}
 	}
 
 	if ((config.features & NULLCLIENT) && config.smarthost == NULL) {
-		errlogx(1, "%s: NULLCLIENT requires SMARTHOST", DMA_CONF);
+		dh_errlogx(dhs, 1, "%s: NULLCLIENT requires SMARTHOST", DMA_CONF);
 		/* NOTREACHED */
 	}
 

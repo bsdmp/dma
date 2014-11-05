@@ -268,7 +268,7 @@ smtp_login(int fd, char *login, char* password)
 		/* Send AUTH command according to RFC 2554 */
 		send_remote_command(fd, "AUTH LOGIN");
 		if (read_remote(fd, 0, NULL) != 3) {
-			syslog(LOG_NOTICE, "remote delivery deferred:"
+			dh_syslog(dhs, LOG_NOTICE, "remote delivery deferred:"
 					" AUTH login not available: %s",
 					neterr);
 			return (1);
@@ -277,7 +277,7 @@ smtp_login(int fd, char *login, char* password)
 		len = base64_encode(login, strlen(login), &temp);
 		if (len < 0) {
 encerr:
-			syslog(LOG_ERR, "can not encode auth reply: %m");
+			dh_syslog(dhs, LOG_ERR, "can not encode auth reply: %m");
 			return (1);
 		}
 
@@ -285,7 +285,7 @@ encerr:
 		free(temp);
 		res = read_remote(fd, 0, NULL);
 		if (res != 3) {
-			syslog(LOG_NOTICE, "remote delivery %s: AUTH login failed: %s",
+			dh_syslog(dhs, LOG_NOTICE, "remote delivery %s: AUTH login failed: %s",
 			       res == 5 ? "failed" : "deferred", neterr);
 			return (res == 5 ? -1 : 1);
 		}
@@ -298,12 +298,12 @@ encerr:
 		free(temp);
 		res = read_remote(fd, 0, NULL);
 		if (res != 2) {
-			syslog(LOG_NOTICE, "remote delivery %s: Authentication failed: %s",
+			dh_syslog(dhs, LOG_NOTICE, "remote delivery %s: Authentication failed: %s",
 					res == 5 ? "failed" : "deferred", neterr);
 			return (res == 5 ? -1 : 1);
 		}
 	} else {
-		syslog(LOG_WARNING, "non-encrypted SMTP login is disabled in config, so skipping it. ");
+		dh_syslog(dhs, LOG_WARNING, "non-encrypted SMTP login is disabled in config, so skipping it. ");
 		return (1);
 	}
 
@@ -315,19 +315,19 @@ open_connection(struct mx_hostentry *h)
 {
 	int fd;
 
-	syslog(LOG_INFO, "trying remote delivery to %s [%s] pref %d",
+	dh_syslog(dhs, LOG_INFO, "trying remote delivery to %s [%s] pref %d",
 	       h->host, h->addr, h->pref);
 
 	fd = socket(h->ai.ai_family, h->ai.ai_socktype, h->ai.ai_protocol);
 	if (fd < 0) {
-		syslog(LOG_INFO, "socket for %s [%s] failed: %m",
+		dh_syslog(dhs, LOG_INFO, "socket for %s [%s] failed: %m",
 		       h->host, h->addr);
 		return (-1);
 	}
 
 //	if (connect(fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
 	if (dh_connect(dhsr, &fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
-		syslog(LOG_INFO, "connect to %s [%s] failed: %m",
+		dh_syslog(dhs, LOG_INFO, "connect to %s [%s] failed: %m",
 		       h->host, h->addr);
 		close(fd);
 		return (-1);
@@ -369,13 +369,13 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 #define READ_REMOTE_CHECK(c, exp)	\
 	res = read_remote(fd, 0, NULL); \
 	if (res == 5) { \
-		syslog(LOG_ERR, "remote delivery to %s [%s] failed after %s: %s", \
+		dh_syslog(dhs, LOG_ERR, "remote delivery to %s [%s] failed after %s: %s", \
 		       host->host, host->addr, c, neterr); \
 		snprintf(errmsg, sizeof(errmsg), "%s [%s] did not like our %s:\n%s", \
 			 host->host, host->addr, c, neterr); \
 		return (-1); \
 	} else if (res != exp) { \
-		syslog(LOG_NOTICE, "remote delivery deferred: %s [%s] failed after %s: %s", \
+		dh_syslog(dhs, LOG_NOTICE, "remote delivery deferred: %s [%s] failed after %s: %s", \
 		       host->host, host->addr, c, neterr); \
 		return (1); \
 	}
@@ -392,7 +392,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 	if ((config.features & SECURETRANS) != 0) {
 		error = smtp_init_crypto(fd, config.features);
 		if (error == 0)
-			syslog(LOG_DEBUG, "SSL initialization successful");
+			dh_syslog(dhs, LOG_DEBUG, "SSL initialization successful");
 		else
 			goto out;
 
@@ -421,17 +421,17 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 		 * Check if the user wants plain text login without using
 		 * encryption.
 		 */
-		syslog(LOG_INFO, "using SMTP authentication for user %s", a->login);
+		dh_syslog(dhs, LOG_INFO, "using SMTP authentication for user %s", a->login);
 		error = smtp_login(fd, a->login, a->password);
 		if (error < 0) {
-			syslog(LOG_ERR, "remote delivery failed:"
+			dh_syslog(dhs, LOG_ERR, "remote delivery failed:"
 					" SMTP login failed: %m");
 			snprintf(errmsg, sizeof(errmsg), "SMTP login to %s failed", host->host);
 			return (-1);
 		}
 		/* SMTP login is not available, so try without */
 		else if (error > 0) {
-			syslog(LOG_WARNING, "SMTP login not available. Trying without.");
+			dh_syslog(dhs, LOG_WARNING, "SMTP login not available. Trying without.");
 		}
 	}
 
@@ -452,7 +452,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 			break;
 		linelen = strlen(line);
 		if (linelen == 0 || line[linelen - 1] != '\n') {
-			syslog(LOG_CRIT, "remote delivery failed: corrupted queue file");
+			dh_syslog(dhs, LOG_CRIT, "remote delivery failed: corrupted queue file");
 			snprintf(errmsg, sizeof(errmsg), "corrupted queue file");
 			error = -1;
 			goto out;
@@ -469,7 +469,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 			linelen++;
 
 		if (send_remote_command(fd, "%s", line) != (ssize_t)linelen+1) {
-			syslog(LOG_NOTICE, "remote delivery deferred: write error");
+			dh_syslog(dhs, LOG_NOTICE, "remote delivery deferred: write error");
 			error = 1;
 			goto out;
 		}
@@ -480,7 +480,7 @@ deliver_to_host(struct qitem *it, struct mx_hostentry *host)
 
 	send_remote_command(fd, "QUIT");
 	if (read_remote(fd, 0, NULL) != 2)
-		syslog(LOG_INFO, "remote delivery succeeded but QUIT failed: %s", neterr);
+		dh_syslog(dhs, LOG_INFO, "remote delivery succeeded but QUIT failed: %s", neterr);
 out:
 
 	close_connection(fd);
@@ -501,7 +501,7 @@ deliver_remote(struct qitem *it)
 	if (config.smarthost != NULL) {
 		host = config.smarthost;
 		port = config.port;
-		syslog(LOG_INFO, "using smarthost (%s:%i)", host, port);
+		dh_syslog(dhs, LOG_INFO, "using smarthost (%s:%i)", host, port);
 		smarthost = 1;
 	} else {
 		host = strrchr(it->addr, '@');
@@ -519,7 +519,7 @@ deliver_remote(struct qitem *it)
 	error = dns_get_mx_list(host, port, &hosts, smarthost);
 	if (error) {
 		snprintf(errmsg, sizeof(errmsg), "DNS lookup failure: host %s not found", host);
-		syslog(LOG_NOTICE, "remote delivery %s: DNS lookup failure: host %s not found",
+		dh_syslog(dhs, LOG_NOTICE, "remote delivery %s: DNS lookup failure: host %s not found",
 		       error < 0 ? "failed" : "deferred",
 		       host);
 		return (error);

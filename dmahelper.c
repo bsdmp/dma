@@ -1,5 +1,101 @@
 #include "dma.h"
 
+/*
+ * Syslog processing
+ */
+
+static void
+dh_srv_openlog(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	char *ident;
+	int logopt;
+	int facility;
+
+	ident = nvlist_take_string(nvlin, "ident");
+	logopt = nvlist_get_number(nvlin, "logopt");
+	facility = nvlist_get_number(nvlin, "facility");
+
+	openlog(ident, logopt, facility);
+
+	nvlist_add_number(nvlout, "dummy", 1);
+}
+
+static void
+dh_srv_syslog(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	int priority;
+	char *message;
+
+	priority = nvlist_get_number(nvlin, "priority");
+	message = nvlist_take_string(nvlin, "message");
+
+	syslog(priority, "%s", message);
+
+	nvlist_add_number(nvlout, "dummy", 1);
+}
+
+static void
+dh_srv_closelog(nvlist_t *nvlout)
+{
+
+	closelog();
+
+	nvlist_add_number(nvlout, "dummy", 1);
+}
+
+void
+dh_openlog(int fd, const char *ident, int logopt, int facility)
+{
+	nvlist_t *nvl;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", DH_CMD_OPENLOG);
+	nvlist_add_string(nvl, "ident", ident);
+	nvlist_add_number(nvl, "logopt", logopt);
+	nvlist_add_number(nvl, "facility", facility);
+
+	/* XXX we block for read(), but we don't need returning nvl */
+	nvl = nvlist_xfer(fd, nvl);
+	nvlist_destroy(nvl);
+}
+
+void
+dh_syslog(int fd, int priority, const char *message, ...)
+{
+	nvlist_t *nvl;
+	va_list ap;
+
+	va_start(ap, message);
+
+	syslog(LOG_INFO, "OK!");
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", DH_CMD_SYSLOG);
+	nvlist_add_number(nvl, "priority", priority);
+	nvlist_add_stringv(nvl, "message", message, ap);
+
+	/* XXX we block for read(), but we don't need returning nvl */
+	nvl = nvlist_xfer(fd, nvl);
+	nvlist_destroy(nvl);
+	va_end(ap);
+}
+
+void
+dh_closelog(int fd)
+{
+	nvlist_t *nvl;
+
+	nvl = nvlist_create(0);
+	nvlist_add_number(nvl, "cmd", DH_CMD_CLOSELOG);
+
+	/* XXX we block for read(), but we don't need returning nvl */
+	nvl = nvlist_xfer(fd, nvl);
+	nvlist_destroy(nvl);
+}
+
+/*
+ * Getpw[uid|nam] processing
+ */
+
 static void
 dh_srv_getpwuid(nvlist_t *nvlin, nvlist_t *nvlout)
 {
@@ -174,7 +270,7 @@ dh_srv_open(nvlist_t *nvlin, nvlist_t *nvlout)
  * get information from
  */
 int
-dh_open_locked(int dhs, const char *fname, int flags, ...)
+dh_open_locked(int dfd, const char *fname, int flags, ...)
 {
 	int mode = 0;
 
@@ -188,7 +284,7 @@ dh_open_locked(int dhs, const char *fname, int flags, ...)
 #ifndef O_EXLOCK
 	int fd, save_errno;
 
-	fd = dh_open(dhs, fname, flags, mode);
+	fd = dh_open(dfd, fname, flags, mode);
 	if (fd < 0)
 		return(fd);
 	if (flock(fd, LOCK_EX|((flags & O_NONBLOCK)? LOCK_NB: 0)) < 0) {
@@ -199,7 +295,7 @@ dh_open_locked(int dhs, const char *fname, int flags, ...)
 	}
 	return(fd);
 #else
-	return(dh_open(dhs, fname, flags|O_EXLOCK, mode));
+	return(dh_open(dfd, fname, flags|O_EXLOCK, mode));
 #endif
 }
 /* External interface for open() */
@@ -562,6 +658,15 @@ dh_srv_remote(int fd)
 		case DH_CMD_OPEN:
 			dh_srv_open(nvl, nvlout);
 			break;
+		case DH_CMD_OPENLOG:
+			dh_srv_openlog(nvl, nvlout);
+			break;
+		case DH_CMD_SYSLOG:
+			dh_srv_syslog(nvl, nvlout);
+			break;
+		case DH_CMD_CLOSELOG:
+			dh_srv_closelog(nvlout);
+			break;
 		}
 
 		nvlist_send(fd, nvlout);
@@ -592,6 +697,15 @@ dh_srv_local(int fd)
 			break;
 		case DH_CMD_GETPWUID:
 			dh_srv_getpwuid(nvl, nvlout);
+			break;
+		case DH_CMD_OPENLOG:
+			dh_srv_openlog(nvl, nvlout);
+			break;
+		case DH_CMD_SYSLOG:
+			dh_srv_syslog(nvl, nvlout);
+			break;
+		case DH_CMD_CLOSELOG:
+			dh_srv_closelog(nvlout);
 			break;
 		}
 
@@ -694,8 +808,6 @@ dh_service(int fd, int service)
 {
 	nvlist_t *nvl;
 	int srvfd;
-
-	syslog(LOG_INFO, "forking new service");
 
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "service", service);

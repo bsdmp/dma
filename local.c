@@ -81,7 +81,7 @@ create_mbox(const char *name)
 			close(i);
 
 		execl(LIBEXEC_PATH "/dma-mbox-create", "dma-mbox-create", name, NULL);
-		syslog(LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %m");
+		dh_syslog(dhs, LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %m");
 		exit(1);
 
 	default:
@@ -93,17 +93,17 @@ create_mbox(const char *name)
 		do_timeout(0, 0);
 
 		if (waitchild == -1 && e == EINTR) {
-			syslog(LOG_ERR, "hung child while creating mbox `%s': %m", name);
+			dh_syslog(dhs, LOG_ERR, "hung child while creating mbox `%s': %m", name);
 			break;
 		}
 
 		if (waitchild == -1) {
-			syslog(LOG_ERR, "child disappeared while creating mbox `%s': %m", name);
+			dh_syslog(dhs, LOG_ERR, "child disappeared while creating mbox `%s': %m", name);
 			break;
 		}
 
 		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-			syslog(LOG_ERR, "error creating mbox `%s'", name);
+			dh_syslog(dhs, LOG_ERR, "error creating mbox `%s'", name);
 			break;
 		}
 
@@ -113,7 +113,7 @@ create_mbox(const char *name)
 
 	case -1:
 		/* error */
-		syslog(LOG_ERR, "error creating mbox");
+		dh_syslog(dhs, LOG_ERR, "error creating mbox");
 		break;
 	}
 
@@ -139,7 +139,7 @@ deliver_local(struct qitem *it)
 
 	error = snprintf(fn, sizeof(fn), "%s/%s", _PATH_MAILDIR, it->addr);
 	if (error < 0 || (size_t)error >= sizeof(fn)) {
-		syslog(LOG_NOTICE, "local delivery deferred: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: %m");
 		return (1);
 	}
 
@@ -162,18 +162,18 @@ retry:
 			 * Call dma-mbox-create to create it and fix permissions.
 			 */
 			if (tries > 0 || create_mbox(it->addr) != 0) {
-				syslog(LOG_ERR, "local delivery deferred: can not create `%s'", fn);
+				dh_syslog(dhs, LOG_ERR, "local delivery deferred: can not create `%s'", fn);
 				return (1);
 			}
 			++tries;
 			goto retry;
 
 		case EINTR:
-			syslog(LOG_NOTICE, "local delivery deferred: can not lock `%s'", fn);
+			dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not lock `%s'", fn);
 			break;
 
 		default:
-			syslog(LOG_NOTICE, "local delivery deferred: can not open `%s': %m", fn);
+			dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not open `%s': %m", fn);
 			break;
 		}
 		return (1);
@@ -192,13 +192,13 @@ retry:
 		sender = "MAILER-DAEMON";
 
 	if (fseek(it->mailf, 0, SEEK_SET) != 0) {
-		syslog(LOG_NOTICE, "local delivery deferred: can not seek: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not seek: %m");
 		goto out;
 	}
 
 	error = snprintf(line, sizeof(line), "%sFrom %s\t%s", newline, sender, ctime(&now));
 	if (error < 0 || (size_t)error >= sizeof(line)) {
-		syslog(LOG_NOTICE, "local delivery deferred: can not write header: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not write header: %m");
 		goto out;
 	}
 	if (write(mbox, line, error) != error)
@@ -209,7 +209,7 @@ retry:
 			break;
 		linelen = strlen(line);
 		if (linelen == 0 || line[linelen - 1] != '\n') {
-			syslog(LOG_CRIT, "local delivery failed: corrupted queue file");
+			dh_syslog(dhs, LOG_CRIT, "local delivery failed: corrupted queue file");
 			snprintf(errmsg, sizeof(errmsg), "corrupted queue file");
 			error = -1;
 			goto chop;
@@ -243,11 +243,11 @@ retry:
 	return (0);
 
 wrerror:
-	syslog(LOG_ERR, "local delivery failed: write error: %m");
+	dh_syslog(dhs, LOG_ERR, "local delivery failed: write error: %m");
 	error = 1;
 chop:
 	if (ftruncate(mbox, mboxlen) != 0)
-		syslog(LOG_WARNING, "error recovering mbox `%s': %m", fn);
+		dh_syslog(dhs, LOG_WARNING, "error recovering mbox `%s': %m", fn);
 out:
 	close(mbox);
 	return (error);

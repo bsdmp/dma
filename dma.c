@@ -60,6 +60,7 @@
 #include "dma.h"
 
 int dh;
+int dhs;
 int dhsr;
 int dhsl;
 int dhsg;
@@ -257,7 +258,7 @@ go_background(struct queue *queue)
 	pid_t pid;
 
 	if (daemonize && daemon(0, 0) != 0) {
-		syslog(LOG_ERR, "can not daemonize: %m");
+		dh_syslog(dhsg, LOG_ERR, "can not daemonize: %m");
 		exit(1);
 	}
 	daemonize = 0;
@@ -267,7 +268,14 @@ go_background(struct queue *queue)
 	sigaction(SIGCHLD, &sa, NULL);
 
 	LIST_FOREACH(it, &queue->queue, next) {
-		dhsr = dh_service(dh, DH_SERVICE_REMOTE);
+		if (it->remote) {
+			dhsr = dh_service(dh, DH_SERVICE_REMOTE);
+			dhs = dhsr;
+		} else {
+//			dhsl = dh_service(dh, DH_SERVICE_LOCAL);
+			dhs = dhsl;
+		}
+
 		/* No need to fork for the last dest */
 		if (LIST_NEXT(it, next) == NULL)
 			goto retit;
@@ -275,7 +283,7 @@ go_background(struct queue *queue)
 		pid = fork();
 		switch (pid) {
 		case -1:
-			syslog(LOG_ERR, "can not fork: %m");
+			dh_syslog(dhs, LOG_ERR, "can not fork: %m");
 			exit(1);
 			break;
 
@@ -293,15 +301,14 @@ retit:
 			 * process.  It is okay to be raced if we're supposed
 			 * to flush the queue.
 			 */
-			//TODO XXX: syslog
-//			setlogident("%s", it->queueid);
+			dh_setlogident(dhs, "%s", it->queueid);
 			switch (acquirespool(it)) {
 			case 0:
 				break;
 			case 1:
 				if (doqueue)
 					exit(0);
-				syslog(LOG_WARNING, "could not lock queue file");
+				dh_syslog(dhs, LOG_WARNING, "could not lock queue file");
 				exit(1);
 			default:
 				exit(1);
@@ -320,7 +327,7 @@ retit:
 		}
 	}
 
-	syslog(LOG_CRIT, "reached dead code");
+	dh_syslog(dhs, LOG_CRIT, "reached dead code");
 	exit(1);
 }
 
@@ -335,7 +342,7 @@ deliver(struct qitem *it)
 	snprintf(errmsg, sizeof(errmsg), "unknown bounce reason");
 
 retry:
-	syslog(LOG_INFO, "trying delivery");
+	dh_syslog(dhs, LOG_INFO, "trying delivery");
 
 	if (it->remote) {
 		error = deliver_remote(it);
@@ -348,12 +355,12 @@ retry:
 	switch (error) {
 	case 0:
 		delqueue(it);
-		syslog(LOG_INFO, "delivery successful");
+		dh_syslog(dhs, LOG_INFO, "delivery successful");
 		exit(0);
 
 	case 1:
 		if (stat(it->queuefn, &st) != 0) {
-			syslog(LOG_ERR, "lost queue file `%s'", it->queuefn);
+			dh_syslog(dhs, LOG_ERR, "lost queue file `%s'", it->queuefn);
 			exit(1);
 		}
 		if (gettimeofday(&now, NULL) == 0 &&
@@ -392,9 +399,6 @@ void
 run_queue(struct queue *queue)
 {
 	struct qitem *it;
-
-	if (cap_sandboxed())
-		syslog(LOG_INFO, "child sandboxed");
 
 	if (LIST_EMPTY(&queue->queue))
 		return;
@@ -451,6 +455,7 @@ main(int argc, char **argv)
 	dhsl = dh_service(dh, DH_SERVICE_LOCAL);
 	dhsg = dh_service(dh, DH_SERVICE_GLOBAL);
 	spoolfd = dh_getfd(dhsg, DH_GETFD_SPOOLDIR);
+	dhs = dhsl;
 
 	set_username();
 
@@ -492,7 +497,7 @@ main(int argc, char **argv)
 		goto skipopts;
 	} else if (strcmp(argv[0], "newaliases") == 0) {
 		logident_base = "dma";
-		setlogident(NULL);
+		dh_setlogident(dhs, NULL);
 
 		if (read_aliases() != 0) /* CAP: fopen */
 			errx(1, "could not parse aliases file `%s'", config.aliases);
@@ -591,13 +596,13 @@ main(int argc, char **argv)
 skipopts:
 	if (logident_base == NULL)
 		logident_base = "dma";
-	setlogident(NULL); /* CAP: openlog */
+	dh_setlogident(dhs, NULL); /* CAP: openlog */
 
 	act.sa_handler = sighup_handler;
 	act.sa_flags = 0;
 	sigemptyset(&act.sa_mask);
 	if (sigaction(SIGHUP, &act, NULL) != 0)
-		syslog(LOG_WARNING, "can not set signal handler: %m");
+		dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %m");
 
 	parse_conf(); /* CAP: fopen */
 
@@ -605,7 +610,7 @@ skipopts:
 
 	if (showq) {
 		if (load_queue(&queue) < 0) /* CAP?+: opendir, stat, syslog */
-			errlog(1, "can not load queue");
+			dh_errlog(dhs, 1, "can not load queue");
 		show_queue(&queue);
 		return (0);
 	}
@@ -613,38 +618,38 @@ skipopts:
 	if (doqueue) {
 		flushqueue_signal(); /* CAP: open */
 		if (load_queue(&queue) < 0) /* CAP?+: opendir, stat, syslog */
-			errlog(1, "can not load queue");
+			dh_errlog(dhs, 1, "can not load queue");
 		run_queue(&queue); /* CAP+: MAIN */
 		return (0);
 	}
 
 	if (read_aliases() != 0) /* CAP: fopen */
-		errlog(1, "could not parse aliases file `%s'", config.aliases);
+		dh_errlog(dhs, 1, "could not parse aliases file `%s'", config.aliases);
 
 	if ((sender = set_from(&queue, sender)) == NULL) /* CAP?: getenv */
-		errlog(1, NULL);
+		dh_errlog(dhs, 1, NULL);
 
 	if (newspoolf(&queue) != 0) /* CAP: mkstemp, fstat, fchmod, unlink */
-		errlog(1, "can not create temp file in `%s'", DMA_SPOOLDIR);
+		dh_errlog(dhs, 1, "can not create temp file in `%s'", DMA_SPOOLDIR);
 
-	setlogident("%s", queue.id); /* CAP: openlog */
+	dh_setlogident(dhs, "%s", queue.id); /* CAP: openlog */
 
 	for (i = 0; i < argc; i++) {
 		if (add_recp(&queue, argv[i], EXPAND_WILDCARD) != 0) /* CAP: getpwnam */
-			errlogx(1, "invalid recipient `%s'", argv[i]);
+			dh_errlogx(dhs, 1, "invalid recipient `%s'", argv[i]);
 	}
 
 	if (LIST_EMPTY(&queue.queue) && !recp_from_header)
-		errlogx(1, "no recipients");
+		dh_errlogx(dhs, 1, "no recipients");
 
 	if (readmail(&queue, nodot, recp_from_header) != 0) /* CAP: fwrite for queuefn */
-		errlog(1, "can not read mail");
+		dh_errlog(dhs, 1, "can not read mail");
 
 	if (LIST_EMPTY(&queue.queue))
-		errlogx(1, "no recipients");
+		dh_errlogx(dhs, 1, "no recipients");
 
 	if (linkspool(&queue) != 0) /* CAP+: syslog, open */
-		errlog(1, "can not create spools");
+		dh_errlog(dhs, 1, "can not create spools");
 
 	/* From here on the mail is safe. */
 

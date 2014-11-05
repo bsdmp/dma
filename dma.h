@@ -99,6 +99,7 @@
 #endif
 
 extern int dh;
+extern int dhs;
 extern int dhsr;
 extern int dhsl;
 extern int dhsg;
@@ -237,9 +238,9 @@ int readmail(struct queue *, int, int);
 
 /* util.c */
 const char *hostname(void);
-void setlogident(const char *, ...) __attribute__((__format__ (__printf__, 1, 2)));
-void errlog(int, const char *, ...) __attribute__((__format__ (__printf__, 2, 3)));
-void errlogx(int, const char *, ...) __attribute__((__format__ (__printf__, 2, 3)));
+void dh_setlogident(int, const char *, ...) __attribute__((__format__ (__printf__, 2, 3)));
+void dh_errlog(int, int, const char *, ...) __attribute__((__format__ (__printf__, 3, 4)));
+void dh_errlogx(int, int, const char *, ...) __attribute__((__format__ (__printf__, 3, 4)));
 void set_username(void);
 void deltmp(void);
 int do_timeout(int, int);

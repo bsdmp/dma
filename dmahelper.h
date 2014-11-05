@@ -28,6 +28,9 @@
 #define DH_CMD_MKSTEMP		5
 #define DH_CMD_GETPWNAM		6
 #define DH_CMD_GETPWUID		7
+#define DH_CMD_OPENLOG		8
+#define DH_CMD_SYSLOG		9
+#define DH_CMD_CLOSELOG		10
 
 #define DH_GETFD_SPOOLDIR	0
 #define DH_GETFD_DMACONF	1
@@ -45,6 +48,9 @@ int dh_getfd(int, int);
 int dh_mkstemp(int, char **);
 struct passwd *dh_getpwnam(int, const char *);
 struct passwd *dh_getpwuid(int, uid_t);
+void dh_openlog(int, const char *, int logopt, int facility);
+void dh_syslog(int, int, const char *, ...);
+void dh_closelog(int);
 
 int dh_service(int, int);
 int dh_init(void);

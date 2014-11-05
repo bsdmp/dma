@@ -82,7 +82,6 @@ newspoolf(struct queue *queue)
 		return (-1);
 
 	fd = dh_mkstemp(dhsl, &fn);
-	syslog(LOG_INFO, "tempfile=%s", fn);
 	if (fd < 0)
 		return (-1);
 	/* XXX group rights */
@@ -200,7 +199,7 @@ readqueuef(struct queue *queue, char *queuefn)
 		} else if (strcmp(line, "Recipient") == 0) {
 			addr = s;
 		} else {
-			syslog(LOG_DEBUG, "ignoring unknown queue info `%s' in `%s'",
+			dh_syslog(dhs, LOG_DEBUG, "ignoring unknown queue info `%s' in `%s'",
 			       line, queuefn);
 			free(s);
 		}
@@ -210,7 +209,7 @@ readqueuef(struct queue *queue, char *queuefn)
 	    *queueid == 0 || *addr == 0) {
 malformed:
 		errno = EINVAL;
-		syslog(LOG_ERR, "malformed queue file `%s'", queuefn);
+		dh_syslog(dhs, LOG_ERR, "malformed queue file `%s'", queuefn);
 		goto out;
 	}
 
@@ -245,7 +244,7 @@ linkspool(struct queue *queue)
 	if (fflush(queue->mailf) != 0 || fsync(fileno(queue->mailf)) != 0)
 		goto delfiles;
 
-	syslog(LOG_INFO, "new mail from user=%s uid=%d envelope_from=<%s>",
+	dh_syslog(dhs, LOG_INFO, "new mail from user=%s uid=%d envelope_from=<%s>",
 	       username, getuid(), queue->sender);
 
 	LIST_FOREACH(it, &queue->queue, next) {
@@ -269,7 +268,7 @@ linkspool(struct queue *queue)
 	}
 
 	LIST_FOREACH(it, &queue->queue, next) {
-		syslog(LOG_INFO, "mail to=<%s> queued as %s",
+		dh_syslog(dhs, LOG_INFO, "mail to=<%s> queued as %s",
 		       it->addr, it->queueid);
 	}
 
@@ -336,7 +335,7 @@ load_queue(struct queue *queue)
 		continue;
 
 skip_item:
-		syslog(LOG_INFO, "could not pick up queue file: `%s'/`%s': %m", queuefn, mailfn);
+		dh_syslog(dhs, LOG_INFO, "could not pick up queue file: `%s'/`%s': %m", queuefn, mailfn);
 		if (queuefn != NULL)
 			free(queuefn);
 		if (mailfn != NULL)
@@ -392,7 +391,7 @@ acquirespool(struct qitem *it)
 fail:
 	if (errno == EWOULDBLOCK)
 		return (1);
-	syslog(LOG_INFO, "could not acquire queue file: %m");
+	dh_syslog(dhs, LOG_INFO, "could not acquire queue file: %m");
 	return (-1);
 }
 
@@ -448,7 +447,7 @@ flushqueue_signal(void)
 	fd = openat(spoolfd, flushfn, O_CREAT|O_WRONLY|O_TRUNC, 0660);
 	free(flushfn);
 	if (fd < 0) {
-		syslog(LOG_ERR, "could not open flush file: %m");
+		dh_syslog(dhs, LOG_ERR, "could not open flush file: %m");
 		return (-1);
 	}
         close(fd);

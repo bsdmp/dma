@@ -7,3 +7,4 @@ Capsicum unresolved issues:
  - look for XXX:'s and TODO:'s in comments :-)
  - check if we can run dma-mbox-create as external helper;
  - evaluate needness for #ifdef's for CAPSICUM compilation;
+ - hostname() in capability mode?

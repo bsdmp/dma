@@ -69,9 +69,9 @@ logfail(const char *fmt, ...)
 
 	errno = oerrno;
 	if (*outs != 0)
-		syslog(LOG_ERR, errno ? "%s: %m" : "%s", outs);
+		dh_syslog(dhs, LOG_ERR, errno ? "%s: %m" : "%s", outs);
 	else
-		syslog(LOG_ERR, errno ? "%m" : "unknown error");
+		dh_syslog(dhs, LOG_ERR, errno ? "%m" : "unknown error");
 
 	exit(1);
 }
@@ -116,7 +116,7 @@ main(int argc, char **argv)
 	}
 	user = argv[1];
 
-	syslog(LOG_NOTICE, "creating mbox for `%s'", user);
+	dh_syslog(dhs, LOG_NOTICE, "creating mbox for `%s'", user);
 
 	/* the username may not contain a pathname separator */
 	if (strchr(user, '/')) {
@@ -154,7 +154,7 @@ main(int argc, char **argv)
 
 	/* file should be present with the right owner and permissions */
 
-	syslog(LOG_NOTICE, "successfully created mbox for `%s'", user);
+	dh_syslog(dhs, LOG_NOTICE, "successfully created mbox for `%s'", user);
 
 	return (0);
 }

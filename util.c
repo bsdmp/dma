@@ -117,7 +117,7 @@ local:
 }
 
 void
-setlogident(const char *fmt, ...)
+dh_setlogident(int fd, const char *fmt, ...)
 {
 	static char tag[50];
 
@@ -131,12 +131,12 @@ setlogident(const char *fmt, ...)
 		va_end(ap);
 		snprintf(tag, sizeof(tag), "%s[%s]", logident_base, sufx);
 	}
-	closelog();
-	openlog(tag, 0, LOG_MAIL);
+	dh_closelog(fd);
+	dh_openlog(fd, tag, 0, LOG_MAIL);
 }
 
 void
-errlog(int exitcode, const char *fmt, ...)
+dh_errlog(int fd, int exitcode, const char *fmt, ...)
 {
 	int oerrno = errno;
 	va_list ap;
@@ -151,10 +151,10 @@ errlog(int exitcode, const char *fmt, ...)
 
 	errno = oerrno;
 	if (*outs != 0) {
-		syslog(LOG_ERR, "%s: %m", outs);
+		dh_syslog(fd, LOG_ERR, "%s: %m", outs);
 		fprintf(stderr, "%s: %s: %s\n", getprogname(), outs, strerror(oerrno));
 	} else {
-		syslog(LOG_ERR, "%m");
+		dh_syslog(fd, LOG_ERR, "%m");
 		fprintf(stderr, "%s: %s\n", getprogname(), strerror(oerrno));
 	}
 
@@ -162,7 +162,7 @@ errlog(int exitcode, const char *fmt, ...)
 }
 
 void
-errlogx(int exitcode, const char *fmt, ...)
+dh_errlogx(int fd, int exitcode, const char *fmt, ...)
 {
 	va_list ap;
 	char outs[ERRMSG_SIZE];
@@ -175,10 +175,10 @@ errlogx(int exitcode, const char *fmt, ...)
 	}
 
 	if (*outs != 0) {
-		syslog(LOG_ERR, "%s", outs);
+		dh_syslog(fd, LOG_ERR, "%s", outs);
 		fprintf(stderr, "%s: %s\n", getprogname(), outs);
 	} else {
-		syslog(LOG_ERR, "Unknown error");
+		dh_syslog(fd, LOG_ERR, "Unknown error");
 		fprintf(stderr, "%s: Unknown error\n", getprogname());
 	}
 
@@ -252,7 +252,7 @@ do_timeout(int timeout, int dojmp)
 	if (timeout) {
 		act.sa_handler = sigalrm_handler;
 		if (sigaction(SIGALRM, &act, NULL) != 0)
-			syslog(LOG_WARNING, "can not set signal handler: %m");
+			dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %m");
 		if (dojmp) {
 			ret = sigsetjmp(sigbuf, 1);
 			if (ret)
@@ -268,7 +268,7 @@ disable:
 
 		act.sa_handler = SIG_IGN;
 		if (sigaction(SIGALRM, &act, NULL) != 0)
-			syslog(LOG_WARNING, "can not remove signal handler: %m");
+			dh_syslog(dhs, LOG_WARNING, "can not remove signal handler: %m");
 		sigbuf_valid = 0;
 	}
 
