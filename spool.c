@@ -170,6 +170,8 @@ readqueuef(struct queue *queue, char *queuefn)
 
 	/* XXX error checking */
 	queuefd = openat(spoolfd, it->queuefn, O_RDONLY);
+	if (queuefd < 0)
+		goto out;
 	queuef = fdopen(queuefd, "r");
 	if (queuef == NULL)
 		goto out;
@@ -307,9 +309,9 @@ load_queue(struct queue *queue)
 		/* ignore non-queue files */
 		if (de->d_name[0] != 'Q')
 			continue;
-		if (asprintf(&queuefn, "%s/Q%s", DMA_SPOOLDIR, de->d_name + 1) < 0)
+		if (asprintf(&queuefn, "Q%s", de->d_name + 1) < 0)
 			goto fail;
-		if (asprintf(&mailfn, "%s/M%s", DMA_SPOOLDIR, de->d_name + 1) < 0)
+		if (asprintf(&mailfn, "M%s", de->d_name + 1) < 0)
 			goto fail;
 
 		/*
@@ -317,14 +319,14 @@ load_queue(struct queue *queue)
 		 * do an explicit stat on the queue file.
 		 * Move on if it turns out to be something else than a file.
 		 */
-		if (stat(queuefn, &sb) != 0)
+		if (fstatat(spoolfd, queuefn, &sb, 0) != 0)
 			goto skip_item;
 		if (!S_ISREG(sb.st_mode)) {
 			errno = EINVAL;
 			goto skip_item;
 		}
 
-		if (stat(mailfn, &sb) != 0)
+		if (fstatat(spoolfd, mailfn, &sb, 0) != 0)
 			goto skip_item;
 
 		it = readqueuef(queue, queuefn); /* CAP: fopen */
@@ -418,9 +420,9 @@ flushqueue_since(unsigned int period)
 	struct timeval now;
         char *flushfn = NULL;
 
-	if (asprintf(&flushfn, "%s/%s", DMA_SPOOLDIR, SPOOL_FLUSHFILE) < 0)
+	if (asprintf(&flushfn, "%s", SPOOL_FLUSHFILE) < 0)
 		return (0);
-	if (stat(flushfn, &st) < 0) {
+	if (fstatat(spoolfd, flushfn, &st, 0) < 0) {
 		free(flushfn);
 		return (0);
 	}
