@@ -192,7 +192,7 @@ check_username(const char *name, uid_t ckuid)
 
 	if (name == NULL)
 		return (0);
-	pwd = dh_getpwnam(dhsl, name);
+	pwd = dh_getpwnam(dhs, name);
 	if (pwd == NULL || pwd->pw_uid != ckuid)
 		return (0);
 	snprintf(username, sizeof(username), "%s", name);
@@ -211,7 +211,7 @@ set_username(void)
 		return;
 	if (check_username(getenv("USER"), useruid))
 		return;
-	pwd = dh_getpwuid(dhsl, useruid);
+	pwd = dh_getpwuid(dhs, useruid);
 	if (pwd != NULL && pwd->pw_name != NULL && pwd->pw_name[0] != '\0') {
 		if (check_username(pwd->pw_name, useruid))
 			return;
@@ -336,9 +336,9 @@ init_random(void)
 	unsigned int seed;
 	int rf;
 
-	rf = dh_open(dhsl, "/dev/urandom", O_RDONLY, 0);
+	rf = dh_open(dhs, "/dev/urandom", O_RDONLY, 0);
 	if (rf == -1)
-		rf = dh_open(dhsl, "/dev/random", O_RDONLY, 0);
+		rf = dh_open(dhs, "/dev/random", O_RDONLY, 0);
 
 	if (!(rf != -1 && read(rf, &seed, sizeof(seed)) == sizeof(seed)))
 		seed = (time(NULL) ^ getpid()) + (uintptr_t)&seed;

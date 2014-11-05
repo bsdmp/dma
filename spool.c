@@ -81,7 +81,7 @@ newspoolf(struct queue *queue)
 	if (snprintf(fn, sizeof(fn), "%s", "tmp_XXXXXXXXXX") <= 0)
 		return (-1);
 
-	fd = dh_mkstemp(dhsl, &fn);
+	fd = dh_mkstemp(dhs, &fn);
 	if (fd < 0)
 		return (-1);
 	/* XXX group rights */

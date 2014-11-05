@@ -77,7 +77,7 @@ add_host(int pref, const char *host, int port, struct mx_hostentry **he, size_t 
 
 	snprintf(servname, sizeof(servname), "%d", port);
 	//err = getaddrinfo(host, servname, &hints, &res0);
-	err = dh_getaddrinfo(dhsr, host, servname, &hints, &res0);
+	err = dh_getaddrinfo(dhs, host, servname, &hints, &res0);
 	if (err)
 		return (err == EAI_AGAIN ? 1 : -1);
 
@@ -131,7 +131,7 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 	int i;
 
 	//res_init();
-	dh_res_init(dhsr);
+	dh_res_init(dhs);
 	searchhost = host;
 	cname_recurse = 0;
 
@@ -145,7 +145,7 @@ dns_get_mx_list(const char *host, int port, struct mx_hostentry **he, int no_mx)
 
 repeat:
 	//err = res_search(searchhost, ns_c_in, ns_t_mx, ans, anssz);
-	err = dh_res_search(dhsr, searchhost, ns_c_in, ns_t_mx, ans, anssz);
+	err = dh_res_search(dhs, searchhost, ns_c_in, ns_t_mx, ans, anssz);
 	if (err < 0) {
 		switch (h_errno) {
 		case NO_DATA:

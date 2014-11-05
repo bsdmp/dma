@@ -231,7 +231,7 @@ add_recp(struct queue *queue, const char *str, int expand)
 				LIST_REMOVE(it, next);
 			} else {
 				/* Local destination, check */
-				pw = dh_getpwnam(dhsl, it->addr);
+				pw = dh_getpwnam(dhs, it->addr);
 				if (pw == NULL)
 					goto out;
 				/* XXX read .forward */
@@ -467,7 +467,7 @@ main(int argc, char **argv)
 		struct passwd *pw;
 
 		errno = 0;
-		pw = dh_getpwnam(dhsl, DMA_ROOT_USER); /* CAP: casper */
+		pw = dh_getpwnam(dhs, DMA_ROOT_USER); /* CAP: casper */
 		if (pw == NULL) {
 			if (errno == 0)
 				errx(1, "user '%s' not found", DMA_ROOT_USER);
