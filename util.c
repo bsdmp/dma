@@ -97,7 +97,7 @@ hostname(void)
 	}
 
 local:
-	if (gethostname(name, sizeof(name)) != 0)
+	if (dh_gethostname(dhs, name, sizeof(name)) != 0)
 		*name = 0;
 	/*
 	 * gethostname() is allowed to truncate name without NUL-termination

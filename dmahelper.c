@@ -1,5 +1,53 @@
 #include "dma.h"
 
+/* gethostname() */
+
+static void
+dh_srv_gethostname(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	char *name;
+	int namelen;
+
+	namelen = nvlist_get_number(nvlin, "namelen");
+	name = malloc(namelen);
+
+	if (gethostname(name, namelen) == 0) {
+		nvlist_add_number(nvlout, "result", 0);
+		nvlist_move_string(nvlout, "name", name);
+	} else {
+		nvlist_add_number(nvlout, "result", -1);
+		nvlist_add_number(nvlout, "errno" , errno);
+		free(name);
+	}
+}
+
+int
+dh_gethostname(int fd, char *name, size_t namelen)
+{
+	nvlist_t *nvl;
+	int result;
+	char *name2;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_GETHOSTNAME);
+	nvlist_add_number(nvl, "namelen", namelen);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	result = nvlist_get_number(nvl, "result");
+	if (result == 0) {
+		name2 = nvlist_take_string(nvl, "name");
+		strncpy(name, name2, namelen);
+	} else {
+		errno = nvlist_get_number(nvl, "errno");
+		result = -1;
+	}
+	nvlist_destroy(nvl);
+
+	return (result);
+}
+
 /*
  * Syslog processing
  */
@@ -667,6 +715,9 @@ dh_srv_remote(int fd)
 		case DH_CMD_CLOSELOG:
 			dh_srv_closelog(nvlout);
 			break;
+		case DH_CMD_GETHOSTNAME:
+			dh_srv_gethostname(nvl, nvlout);
+			break;
 		}
 
 		nvlist_send(fd, nvlout);
@@ -706,6 +757,9 @@ dh_srv_local(int fd)
 			break;
 		case DH_CMD_CLOSELOG:
 			dh_srv_closelog(nvlout);
+			break;
+		case DH_CMD_GETHOSTNAME:
+			dh_srv_gethostname(nvl, nvlout);
 			break;
 		}
 
