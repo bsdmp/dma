@@ -277,7 +277,7 @@ smtp_login(int fd, char *login, char* password)
 		len = base64_encode(login, strlen(login), &temp);
 		if (len < 0) {
 encerr:
-			dh_syslog(dhs, LOG_ERR, "can not encode auth reply: %m");
+			dh_syslog(dhs, LOG_ERR, "can not encode auth reply: %s", strerror(errno));
 			return (1);
 		}
 
@@ -320,15 +320,15 @@ open_connection(struct mx_hostentry *h)
 
 	fd = socket(h->ai.ai_family, h->ai.ai_socktype, h->ai.ai_protocol);
 	if (fd < 0) {
-		dh_syslog(dhs, LOG_INFO, "socket for %s [%s] failed: %m",
-		       h->host, h->addr);
+		dh_syslog(dhs, LOG_INFO, "socket for %s [%s] failed: %s",
+		       h->host, h->addr, strerror(errno));
 		return (-1);
 	}
 
 //	if (connect(fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
 	if (dh_connect(dhs, &fd, (struct sockaddr *)&h->sa, h->ai.ai_addrlen) < 0) {
-		dh_syslog(dhs, LOG_INFO, "connect to %s [%s] failed: %m",
-		       h->host, h->addr);
+		dh_syslog(dhs, LOG_INFO, "connect to %s [%s] failed: %s",
+		       h->host, h->addr, strerror(errno));
 		close(fd);
 		return (-1);
 	}

@@ -335,7 +335,7 @@ load_queue(struct queue *queue)
 		continue;
 
 skip_item:
-		dh_syslog(dhs, LOG_INFO, "could not pick up queue file: `%s'/`%s': %m", queuefn, mailfn);
+		dh_syslog(dhs, LOG_INFO, "could not pick up queue file: `%s'/`%s': %s", queuefn, mailfn, strerror(errno));
 		if (queuefn != NULL)
 			free(queuefn);
 		if (mailfn != NULL)
@@ -391,7 +391,7 @@ acquirespool(struct qitem *it)
 fail:
 	if (errno == EWOULDBLOCK)
 		return (1);
-	dh_syslog(dhs, LOG_INFO, "could not acquire queue file: %m");
+	dh_syslog(dhs, LOG_INFO, "could not acquire queue file: %s", strerror(errno));
 	return (-1);
 }
 
@@ -447,7 +447,7 @@ flushqueue_signal(void)
 	fd = openat(spoolfd, flushfn, O_CREAT|O_WRONLY|O_TRUNC, 0660);
 	free(flushfn);
 	if (fd < 0) {
-		dh_syslog(dhs, LOG_ERR, "could not open flush file: %m");
+		dh_syslog(dhs, LOG_ERR, "could not open flush file: %s", strerror(errno));
 		return (-1);
 	}
         close(fd);

@@ -81,7 +81,7 @@ create_mbox(const char *name)
 			close(i);
 
 		execl(LIBEXEC_PATH "/dma-mbox-create", "dma-mbox-create", name, NULL);
-		dh_syslog(dhs, LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %m");
+		dh_syslog(dhs, LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %s", strerror(errno));
 		exit(1);
 
 	default:
@@ -93,12 +93,12 @@ create_mbox(const char *name)
 		do_timeout(0, 0);
 
 		if (waitchild == -1 && e == EINTR) {
-			dh_syslog(dhs, LOG_ERR, "hung child while creating mbox `%s': %m", name);
+			dh_syslog(dhs, LOG_ERR, "hung child while creating mbox `%s': %s", name, strerror(errno));
 			break;
 		}
 
 		if (waitchild == -1) {
-			dh_syslog(dhs, LOG_ERR, "child disappeared while creating mbox `%s': %m", name);
+			dh_syslog(dhs, LOG_ERR, "child disappeared while creating mbox `%s': %s", name, strerror(errno));
 			break;
 		}
 
@@ -140,7 +140,7 @@ deliver_local(struct qitem *it)
 
 	error = snprintf(fn, sizeof(fn), "%s", it->addr);
 	if (error < 0 || (size_t)error >= sizeof(fn)) {
-		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: %s", strerror(errno));
 		return (1);
 	}
 
@@ -180,7 +180,7 @@ retry:
 			break;
 
 		default:
-			dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not open `%s': %m", fn);
+			dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not open `%s': %s", fn, strerror(errno));
 			break;
 		}
 		return (1);
@@ -199,13 +199,13 @@ retry:
 		sender = "MAILER-DAEMON";
 
 	if (fseek(it->mailf, 0, SEEK_SET) != 0) {
-		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not seek: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not seek: %s", strerror(errno));
 		goto out;
 	}
 
 	error = snprintf(line, sizeof(line), "%sFrom %s\t%s", newline, sender, ctime(&now));
 	if (error < 0 || (size_t)error >= sizeof(line)) {
-		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not write header: %m");
+		dh_syslog(dhs, LOG_NOTICE, "local delivery deferred: can not write header: %s", strerror(errno));
 		goto out;
 	}
 	if (write(mbox, line, error) != error)
@@ -250,11 +250,11 @@ retry:
 	return (0);
 
 wrerror:
-	dh_syslog(dhs, LOG_ERR, "local delivery failed: write error: %m");
+	dh_syslog(dhs, LOG_ERR, "local delivery failed: write error: %s", strerror(errno));
 	error = 1;
 chop:
 	if (ftruncate(mbox, mboxlen) != 0)
-		dh_syslog(dhs, LOG_WARNING, "error recovering mbox `%s': %m", fn);
+		dh_syslog(dhs, LOG_WARNING, "error recovering mbox `%s': %s", fn, strerror(errno));
 out:
 	close(mbox);
 	return (error);

@@ -152,10 +152,10 @@ dh_errlog(int fd, int exitcode, const char *fmt, ...)
 
 	errno = oerrno;
 	if (*outs != 0) {
-		dh_syslog(fd, LOG_ERR, "%s: %m", outs);
+		dh_syslog(fd, LOG_ERR, "%s: %s", outs, strerror(errno));
 		fprintf(stderr, "%s: %s: %s\n", getprogname(), outs, strerror(oerrno));
 	} else {
-		dh_syslog(fd, LOG_ERR, "%m");
+		dh_syslog(fd, LOG_ERR, "%s", strerror(errno));
 		fprintf(stderr, "%s: %s\n", getprogname(), strerror(oerrno));
 	}
 
@@ -253,7 +253,7 @@ do_timeout(int timeout, int dojmp)
 	if (timeout) {
 		act.sa_handler = sigalrm_handler;
 		if (sigaction(SIGALRM, &act, NULL) != 0)
-			dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %m");
+			dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %s", strerror(errno));
 		if (dojmp) {
 			ret = sigsetjmp(sigbuf, 1);
 			if (ret)
@@ -269,7 +269,7 @@ disable:
 
 		act.sa_handler = SIG_IGN;
 		if (sigaction(SIGALRM, &act, NULL) != 0)
-			dh_syslog(dhs, LOG_WARNING, "can not remove signal handler: %m");
+			dh_syslog(dhs, LOG_WARNING, "can not remove signal handler: %s", strerror(errno));
 		sigbuf_valid = 0;
 	}
 

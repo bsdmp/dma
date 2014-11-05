@@ -258,7 +258,7 @@ go_background(struct queue *queue)
 	pid_t pid;
 
 	if (daemonize && daemon(0, 0) != 0) {
-		dh_syslog(dhsg, LOG_ERR, "can not daemonize: %m");
+		dh_syslog(dhsg, LOG_ERR, "can not daemonize: %s", strerror(errno));
 		exit(1);
 	}
 	daemonize = 0;
@@ -283,7 +283,7 @@ go_background(struct queue *queue)
 		pid = fork();
 		switch (pid) {
 		case -1:
-			dh_syslog(dhs, LOG_ERR, "can not fork: %m");
+			dh_syslog(dhs, LOG_ERR, "can not fork: %s", strerror(errno));
 			exit(1);
 			break;
 
@@ -602,7 +602,7 @@ skipopts:
 	act.sa_flags = 0;
 	sigemptyset(&act.sa_mask);
 	if (sigaction(SIGHUP, &act, NULL) != 0)
-		dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %m");
+		dh_syslog(dhs, LOG_WARNING, "can not set signal handler: %s", strerror(errno));
 
 	parse_conf(); /* CAP: fopen */
 

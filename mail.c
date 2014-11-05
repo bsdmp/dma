@@ -131,7 +131,7 @@ bounce(struct qitem *it, const char *reason)
 	/* NOTREACHED */
 
 fail:
-	dh_syslog(dhs, LOG_CRIT, "error creating bounce: %m");
+	dh_syslog(dhs, LOG_CRIT, "error creating bounce: %s", strerror(errno));
 	delqueue(it);
 	exit(1);
 }

@@ -295,7 +295,7 @@ smtp_auth_md5(int fd, char *login, char *password)
 	/* encode answer */
 	len = base64_encode(buffer, strlen(buffer), &temp);
 	if (len < 0) {
-		dh_syslog(dhs, LOG_ERR, "can not encode auth reply: %m");
+		dh_syslog(dhs, LOG_ERR, "can not encode auth reply: %s", strerror(errno));
 		return (-1);
 	}
 
