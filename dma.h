@@ -104,6 +104,7 @@ extern int dhsr;
 extern int dhsl;
 extern int dhsg;
 extern int spoolfd;
+extern int mdirfd;
 
 struct stritem {
 	SLIST_ENTRY(stritem) next;

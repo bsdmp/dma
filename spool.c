@@ -168,8 +168,7 @@ readqueuef(struct queue *queue, char *queuefn)
 	bzero(&itmqueue, sizeof(itmqueue));
 	LIST_INIT(&itmqueue.queue);
 
-	/* XXX error checking */
-	queuefd = openat(spoolfd, it->queuefn, O_RDONLY);
+	queuefd = openat(spoolfd, queuefn, O_RDONLY);
 	if (queuefd < 0)
 		goto out;
 	queuef = fdopen(queuefd, "r");
@@ -343,7 +342,7 @@ skip_item:
 		if (mailfn != NULL)
 			free(mailfn);
 	}
-	closedir(spooldir);
+	fdclosedir(spooldir);
 	return (0);
 
 fail:
@@ -376,6 +375,7 @@ acquirespool(struct qitem *it)
 		if (it->queuef == NULL)
 			goto fail;
 	}
+
 
 	if (it->mailf == NULL) {
 		/* XXX: changed to use open() and fdopen() */

@@ -65,6 +65,7 @@ int dhsr;
 int dhsl;
 int dhsg;
 int spoolfd;
+int mdirfd;
 
 static void deliver(struct qitem *);
 
@@ -451,10 +452,12 @@ main(int argc, char **argv)
 	int recp_from_header = 0;
 
 	dh = dh_init();
+	openlog("dma-main", 0, LOG_MAIL);
 	cap_enter();
 	dhsl = dh_service(dh, DH_SERVICE_LOCAL);
 	dhsg = dh_service(dh, DH_SERVICE_GLOBAL);
 	spoolfd = dh_getfd(dhsg, DH_GETFD_SPOOLDIR);
+	mdirfd = dh_getfd(dhsg, DH_GETFD_MAILDIR);
 	dhs = dhsl;
 
 	set_username();

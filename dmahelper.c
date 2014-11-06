@@ -207,8 +207,10 @@ dh_srv_getpwnam(nvlist_t *nvlin, nvlist_t *nvlout)
 		nvlist_add_number(nvlout, "errno", errno);
 	}
 
+	syslog(LOG_INFO, "mark 1");
 	/* XXX: Do we need this? */
 	endpwent();
+	syslog(LOG_INFO, "mark 1");
 }
 
 struct passwd *
@@ -745,7 +747,17 @@ dh_srv_global(int fd)
 	int authconffd = open(DMA_AUTHCONF, O_RDONLY);
 	int dmaconffd = open(DMA_CONF, O_RDONLY);
 	int spooldirfd = open(DMA_SPOOLDIR, O_DIRECTORY);
+	if  (spooldirfd < 0) {
+		openlog("dma-global", 0, LOG_MAIL);
+		syslog(LOG_INFO, "can not open spooldir fd");
+		closelog();
+	}
 	int maildirfd = open(_PATH_MAILDIR, O_DIRECTORY);
+	if  (maildirfd < 0) {
+		openlog("dma-global", 0, LOG_MAIL);
+		syslog(LOG_INFO, "can not open maildirfd fd");
+		closelog();
+	}
 
 	cap_enter();
 
@@ -817,9 +829,11 @@ dh_loop(int fd)
 		switch (pid) {
 		case 0:
 			close(sv[1]);
+			//close(fd);
 			dh_srv_dispatch(sv[0], service);
 			break;
 		default:
+			//close(sv[0]);
 			nvlist_move_descriptor(nvl, "fd", sv[1]);
 			nvlist_send(fd, nvl);
 		}
