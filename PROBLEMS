@@ -1,10 +1,10 @@
 Capsicum unresolved issues:
  - we use simple fork(), but we should use fexecve() as per cap_enter(2)
    man page;
- - syslog doesn't work at all - create special helper for it;
+ + syslog doesn't work at all - create special helper for it;
  - better privilege separation, now we simply create local/global
    daemons and grab spoolfd right at the beginning of the execution;
  - look for XXX:'s and TODO:'s in comments :-)
- - check if we can run dma-mbox-create as external helper;
+ + check if we can run dma-mbox-create as external helper;
  - evaluate needness for #ifdef's for CAPSICUM compilation;
- - hostname() in capability mode?
+ + hostname() in capability mode?
