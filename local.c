@@ -49,78 +49,78 @@
 
 #include "dma.h"
 
-static int
-create_mbox(const char *name)
-{
-	struct sigaction sa, osa;
-	pid_t child, waitchild;
-	int status;
-	int i;
-	long maxfd;
-	int e;
-	int r = -1;
-
-	/*
-	 * We need to enable SIGCHLD temporarily so that waitpid works.
-	 */
-	bzero(&sa, sizeof(sa));
-	sa.sa_handler = SIG_DFL;
-	sigaction(SIGCHLD, &sa, &osa);
-
-	do_timeout(100, 0);
-
-	child = fork();
-	switch (child) {
-	case 0:
-		/* child */
-		maxfd = sysconf(_SC_OPEN_MAX);
-		if (maxfd == -1)
-			maxfd = 1024;	/* what can we do... */
-
-		for (i = 3; i <= maxfd; ++i)
-			close(i);
-
-		execl(LIBEXEC_PATH "/dma-mbox-create", "dma-mbox-create", name, NULL);
-		dh_syslog(dhs, LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %s", strerror(errno));
-		exit(1);
-
-	default:
-		/* parent */
-		waitchild = waitpid(child, &status, 0);
-
-		e = errno;
-
-		do_timeout(0, 0);
-
-		if (waitchild == -1 && e == EINTR) {
-			dh_syslog(dhs, LOG_ERR, "hung child while creating mbox `%s': %s", name, strerror(errno));
-			break;
-		}
-
-		if (waitchild == -1) {
-			dh_syslog(dhs, LOG_ERR, "child disappeared while creating mbox `%s': %s", name, strerror(errno));
-			break;
-		}
-
-		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-			dh_syslog(dhs, LOG_ERR, "error creating mbox `%s'", name);
-			break;
-		}
-
-		/* success */
-		r = 0;
-		break;
-
-	case -1:
-		/* error */
-		dh_syslog(dhs, LOG_ERR, "error creating mbox");
-		break;
-	}
-
-	sigaction(SIGCHLD, &osa, NULL);
-
-	return (r);
-}
+//static int
+//create_mbox(const char *name)
+//{
+//	struct sigaction sa, osa;
+//	pid_t child, waitchild;
+//	int status;
+//	int i;
+//	long maxfd;
+//	int e;
+//	int r = -1;
+//
+//	/*
+//	 * We need to enable SIGCHLD temporarily so that waitpid works.
+//	 */
+//	bzero(&sa, sizeof(sa));
+//	sa.sa_handler = SIG_DFL;
+//	sigaction(SIGCHLD, &sa, &osa);
+//
+//	do_timeout(100, 0);
+//
+//	child = fork();
+//	switch (child) {
+//	case 0:
+//		/* child */
+//		maxfd = sysconf(_SC_OPEN_MAX);
+//		if (maxfd == -1)
+//			maxfd = 1024;	/* what can we do... */
+//
+//		for (i = 3; i <= maxfd; ++i)
+//			close(i);
+//
+//		execl(LIBEXEC_PATH "/dma-mbox-create", "dma-mbox-create", name, NULL);
+//		dh_syslog(dhs, LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %s", strerror(errno));
+//		exit(1);
+//
+//	default:
+//		/* parent */
+//		waitchild = waitpid(child, &status, 0);
+//
+//		e = errno;
+//
+//		do_timeout(0, 0);
+//
+//		if (waitchild == -1 && e == EINTR) {
+//			dh_syslog(dhs, LOG_ERR, "hung child while creating mbox `%s': %s", name, strerror(errno));
+//			break;
+//		}
+//
+//		if (waitchild == -1) {
+//			dh_syslog(dhs, LOG_ERR, "child disappeared while creating mbox `%s': %s", name, strerror(errno));
+//			break;
+//		}
+//
+//		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+//			dh_syslog(dhs, LOG_ERR, "error creating mbox `%s'", name);
+//			break;
+//		}
+//
+//		/* success */
+//		r = 0;
+//		break;
+//
+//	case -1:
+//		/* error */
+//		dh_syslog(dhs, LOG_ERR, "error creating mbox");
+//		break;
+//	}
+//
+//	sigaction(SIGCHLD, &osa, NULL);
+//
+//	return (r);
+//}
 
 int
 deliver_local(struct qitem *it)
@@ -166,7 +166,7 @@ retry:
 			 * The file does not exist or we can't access it.
 			 * Call dma-mbox-create to create it and fix permissions.
 			 */
-			if (tries > 0 || create_mbox(it->addr) != 0) {
+			if (tries > 0 || dh_create_mbox(dhs, it->addr) != 0) {
 				dh_syslog(dhs, LOG_ERR, "local delivery deferred: can not create `%s'", fn);
 				return (1);
 			}

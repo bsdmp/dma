@@ -54,6 +54,7 @@
 #define DMA_AUTHCONF	"/etc/dma/auth.conf"
 #define DMA_CONF	"/etc/dma/dma.conf"
 #define DMA_SPOOLDIR	"/var/spool/dma"
+#define DMA_MBOX_CREATE	"/usr/libexec/dma-mbox-create"
 
 #define BUF_SIZE	2048
 #define ERRMSG_SIZE	200

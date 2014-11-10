@@ -14,7 +14,12 @@
 #include <stdarg.h>
 #include <err.h>
 
+#include <paths.h>
+
 #include <sys/capsicum.h>
+
+#include <sys/wait.h>
+#include <signal.h>
 
 #define DH_SERVICE_REMOTE	0
 #define DH_SERVICE_LOCAL	1
@@ -32,12 +37,14 @@
 #define DH_CMD_SYSLOG		9
 #define DH_CMD_CLOSELOG		10
 #define DH_CMD_GETHOSTNAME	11
+#define DH_CMD_MBOX_CREATE	12
 
 #define DH_GETFD_SPOOLDIR	0
 #define DH_GETFD_DMACONF	1
 #define DH_GETFD_ALIASES	2
 #define DH_GETFD_AUTHCONF	3
 #define DH_GETFD_MAILDIR	4
+#define DH_GETFD_MBOX_CREATE	5
 
 int dh_res_init(int);
 int dh_res_search(int, const char *, int, int, u_char *, int);
@@ -53,6 +60,7 @@ void dh_openlog(int, const char *, int logopt, int facility);
 void dh_syslog(int, int, const char *, ...);
 void dh_closelog(int);
 int dh_gethostname(int, char *, size_t);
+int dh_create_mbox(int, const char *);
 
 int dh_service(int, int);
 int dh_init(void);

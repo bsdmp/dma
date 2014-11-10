@@ -1,5 +1,104 @@
 #include "dma.h"
-#include <paths.h>
+
+/*
+ * Mbox create and access permission fix
+ */
+
+/* This code taken from dma */
+static void
+dh_srv_create_mbox(nvlist_t *nvlin, nvlist_t *nvlout)
+{
+	struct sigaction sa, osa;
+	pid_t child, waitchild;
+	int status;
+	int i;
+	long maxfd;
+	int e;
+	int r = -1;
+	const char *name;
+
+	/*
+	 * We need to enable SIGCHLD temporarily so that waitpid works.
+	 */
+	bzero(&sa, sizeof(sa));
+	sa.sa_handler = SIG_DFL;
+	sigaction(SIGCHLD, &sa, &osa);
+	name = nvlist_get_string(nvlin, "name");
+
+	do_timeout(100, 0);
+
+	child = fork();
+	switch (child) {
+	case 0:
+		/* child */
+		maxfd = sysconf(_SC_OPEN_MAX);
+		if (maxfd == -1)
+			maxfd = 1024;	/* what can we do... */
+
+		for (i = 3; i <= maxfd; ++i)
+			close(i);
+
+		execl(DMA_MBOX_CREATE, "dma-mbox-create", name, NULL);
+		syslog(LOG_ERR, "cannot execute "LIBEXEC_PATH"/dma-mbox-create: %s", strerror(errno));
+		exit(1);
+
+	default:
+		/* parent */
+		waitchild = waitpid(child, &status, 0);
+
+		e = errno;
+
+		do_timeout(0, 0);
+
+		if (waitchild == -1 && e == EINTR) {
+			syslog(LOG_ERR, "hung child while creating mbox `%s': %s", name, strerror(errno));
+			break;
+		}
+
+		if (waitchild == -1) {
+			syslog(LOG_ERR, "child disappeared while creating mbox `%s': %s", name, strerror(errno));
+			break;
+		}
+
+		if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+			syslog(LOG_ERR, "error creating mbox `%s'", name);
+			break;
+		}
+
+		/* success */
+		r = 0;
+		break;
+
+	case -1:
+		/* error */
+		syslog(LOG_ERR, "error creating mbox");
+		break;
+	}
+
+	sigaction(SIGCHLD, &osa, NULL);
+
+	nvlist_add_number(nvlout, "result", r);
+}
+
+int
+dh_create_mbox(int fd, const char *name)
+{
+	nvlist_t *nvl;
+	int result;
+
+	nvl = nvlist_create(0);
+
+	nvlist_add_number(nvl, "cmd", DH_CMD_MBOX_CREATE);
+	nvlist_add_string(nvl, "name", name);
+
+	nvl = nvlist_xfer(fd, nvl);
+
+	result = nvlist_get_number(nvl, "result");
+	nvlist_destroy(nvl);
+
+	return (result);
+}
+
 
 /* gethostname() */
 
@@ -116,7 +215,6 @@ dh_syslog(int fd, int priority, const char *message, ...)
 
 	va_start(ap, message);
 
-	syslog(LOG_INFO, "OK!");
 	nvl = nvlist_create(0);
 	nvlist_add_number(nvl, "cmd", DH_CMD_SYSLOG);
 	nvlist_add_number(nvl, "priority", priority);
@@ -207,10 +305,8 @@ dh_srv_getpwnam(nvlist_t *nvlin, nvlist_t *nvlout)
 		nvlist_add_number(nvlout, "errno", errno);
 	}
 
-	syslog(LOG_INFO, "mark 1");
 	/* XXX: Do we need this? */
 	endpwent();
-	syslog(LOG_INFO, "mark 1");
 }
 
 struct passwd *
@@ -729,6 +825,9 @@ dh_srv_local(int fd)
 		case DH_CMD_GETHOSTNAME:
 			dh_srv_gethostname(nvl, nvlout);
 			break;
+		case DH_CMD_MBOX_CREATE:
+			dh_srv_create_mbox(nvl, nvlout);
+			break;
 		}
 
 		nvlist_send(fd, nvlout);
@@ -747,17 +846,8 @@ dh_srv_global(int fd)
 	int authconffd = open(DMA_AUTHCONF, O_RDONLY);
 	int dmaconffd = open(DMA_CONF, O_RDONLY);
 	int spooldirfd = open(DMA_SPOOLDIR, O_DIRECTORY);
-	if  (spooldirfd < 0) {
-		openlog("dma-global", 0, LOG_MAIL);
-		syslog(LOG_INFO, "can not open spooldir fd");
-		closelog();
-	}
 	int maildirfd = open(_PATH_MAILDIR, O_DIRECTORY);
-	if  (maildirfd < 0) {
-		openlog("dma-global", 0, LOG_MAIL);
-		syslog(LOG_INFO, "can not open maildirfd fd");
-		closelog();
-	}
+	int mboxcreatefd = open(DMA_MBOX_CREATE, O_EXEC);
 
 	cap_enter();
 
@@ -780,6 +870,9 @@ dh_srv_global(int fd)
 			break;
 		case DH_GETFD_MAILDIR:
 			nvlist_move_descriptor(nvlout, "ofd", maildirfd);
+			break;
+		case DH_GETFD_MBOX_CREATE:
+			nvlist_move_descriptor(nvlout, "ofd", mboxcreatefd);
 			break;
 		}
 
